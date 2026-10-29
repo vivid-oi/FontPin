@@ -46,13 +46,34 @@ fn collect_glyph_points(
         )
         let mut dx = component.x.to_double()
         let mut dy = component.y.to_double()
-        if (component.flags & 2048) != 0 {
+        if (component.flags & 2) == 0 {
+          if component.x < 0 || component.y < 0 {
+            raise Invalid("negative composite alignment point")
+          }
+          if component.x >= xs.length() || component.y >= child_x.length() {
+            raise Unsupported(
+              "composite alignment requires unavailable contour point; phantom-point alignment is not supported",
+            )
+          }
+          // Transform the child before aligning its point to an already
+          // assembled parent point. ROUND_XY_TO_GRID/offset flags do not apply.
+          dx = xs[component.x] -
+            (
+              child_x[component.y] * component.xx +
+              child_y[component.y] * component.yx
+            )
+          dy = ys[component.x] -
+            (
+              child_x[component.y] * component.xy +
+              child_y[component.y] * component.yy
+            )
+        } else if (component.flags & 2048) != 0 {
           let x = dx * component.xx + dy * component.yx
           let y = dx * component.xy + dy * component.yy
           dx = x
           dy = y
         }
-        if (component.flags & 4) != 0 {
+        if (component.flags & 6) == 6 {
           dx = ot_round(dx).to_double()
           dy = ot_round(dy).to_double()
         }
@@ -159,8 +180,13 @@ fn encode_font_glyph(glyph : FontGlyph) -> Bytes raise FontError {
         }
         push_u16(out, flags)
         push_u16(out, component.glyph)
-        push_i16(out, component.x)
-        push_i16(out, component.y)
+        if (component.flags & 2) == 0 {
+          push_u16(out, component.x)
+          push_u16(out, component.y)
+        } else {
+          push_i16(out, component.x)
+          push_i16(out, component.y)
+        }
         for byte in component.transform {
           out.push(byte)
         }

@@ -19,6 +19,7 @@ Every transformation occurs in local copies. A failed conversion leaves the sour
 - Interpolate in normalized F2Dot14 design coordinates after `avar`; round with OpenType's `floor(x + 0.5)` rule.
 - Decode shared/private tuple points and runs, accumulate repeated point references, interpolate untouched contour points with IUP and keep phantom points separate.
 - Resolve composites with cycle, depth and work guards. Preserve glyph IDs, instructions, component transforms and all untouched tables.
+- Resolve contour-point attachments against the already assembled parent points after transforming the varied child. Keep point indices unsigned, ignore XY-only rounding/offset flags for attachments, and ignore parent gvar deltas for point-aligned components as OpenType prescribes. Phantom-point attachment requires additional metric semantics and is explicitly refused.
 - Use original horizontal metrics as the HVAR baseline, then recompute summary metrics from final outlines and advances.
 - Use original vertical metrics as the VVAR baseline. Apply explicit top/bottom maps without adding phantom deltas twice; combine derived values before rounding, reject inconsistent final bearings and recompute vhea from final vmtx.
 - Mark overlap consistently with the reference instancer. This does not geometrically remove overlaps.

@@ -30,6 +30,7 @@ moon run checks/variation_oracle.mbtx -- wasm moon python
 moon run checks/hints_oracle.mbtx -- wasm moon python
 moon run checks/vertical_oracle.mbtx -- wasm moon python
 moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/vertical/VVARProbe.ttx
+moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/composites/AttachmentProbe.ttx
 moon run checks/names_oracle.mbtx -- wasm moon python
 ```
 
@@ -60,6 +61,12 @@ To run this example manually, first compile the TTX with `python -m fontTools.tt
 The names workflow compiles `LocalizedProbe.ttx` intact, pins weights 100, 400, 650 and 900 at width 85, and decodes the static outputs with fontTools. Every name record key must survive, all family/license values must match, localized full-name prefixes must remain and the `ltag` table must be byte-exact. Each output is reloaded with `inspect`. To reproduce manually, compile `fixtures/names/LocalizedProbe.ttx` with the official TTX CLI, then call FontPin's `instance` command with `wght=650 wdth=85` and inspect the name/ltag tables with TTX.
 
 Format-1 name language tags have separate specification-based binary tests: mixed language IDs, unchanged family/license records, complete original string-storage retention, rewritten style names, localized prefixes including surrogate pairs, invalid tag references, truncated/odd UTF-16, malformed offsets and unsupported legacy encodings. Apple `ltag` must retain its original bytes. Language-tag validation checks ASCII subtag shape and bounds; it does not consult the IANA registry. fontTools 4.67.0 does not support format-1 name language tags, so no fontTools agreement is claimed for that format.
+
+The point-attachment invocation uses `AttachmentProbe.ttx` at the same five positions, comparing every outline record, component argument/transform, glyph program, hmtx/vmtx entry and vhea field. It preserves point-aligned components and tests nested attachments after leaf interpolation. Output reload and byte equality after reversing axis arguments run at every position. To reproduce manually, compile this TTX and pin `wght=650 wdth=87.5`; the output contains five glyphs and retains composite instructions and both attachments.
+
+There is one explicit reference normalization for this fixture. fontTools 4.67.0 derives compound bounds before rounding fractional component offsets for serialization. At `(650,87.5)` its direct static output reports nested `xMax=800`, while recompiling that same static font through the official TTX CLI gives `xMax=801`, matching FontPin's bounds from serialized integer offsets. The oracle therefore recompiles only this reference static output before comparing bounds/summary metrics. It separately asserts that recompilation changes no contour/component/instruction record and no per-glyph horizontal or vertical metric. The fractional case remains in the corpus; no geometry is removed or excluded from the final comparison. The unnormalized bounding boxes are not claimed to match.
+
+Attachment unit tests cover transform-before-alignment, XY flags ignored in point mode, byte/word unsigned arguments including 40000 and 65535, nested flattened point indexing, preserved instructions, prescribed parent-delta ignoring, unavailable/phantom points, resource limits and recovery. Existing cycle/depth tests remain active. Phantom-point alignment is explicitly unsupported.
 
 ## Scope of the evidence
 

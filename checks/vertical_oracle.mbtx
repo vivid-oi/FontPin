@@ -51,6 +51,26 @@ async fn main {
     let dump = ["-m", "fontTools.ttx", "-q", "-e", "-i", "-t", "vhea", "-t", "vmtx", "-t", "glyf", "-t", "hmtx", "-o"]
     @shell.Cmd(python, dump + [actual_xml, actual]).run()
     @shell.Cmd(python, dump + [expected_xml, expected]).run()
+    if fixture.has_suffix("AttachmentProbe.ttx") {
+      // fontTools computes compound bounds before rounding fractional component
+      // offsets on serialization. Recompile its actual STATIC output to derive
+      // bounds from the integer offsets present in that file. Keep the difficult
+      // fractional fixture and verify this does not change any outline record,
+      // component argument/transform, instruction or per-glyph metric.
+      let raw = surface(@fs.read_file(expected_xml[:]).text())
+      let whole_xml = directory + "/reference-" + index.to_string() + ".ttx"
+      let canonical = directory + "/canonical-" + index.to_string() + ".ttf"
+      @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "-o", whole_xml, expected]).run()
+      @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "--no-recalc-timestamp", "-o", canonical, whole_xml]).run()
+      @shell.Cmd(python, dump + [expected_xml, canonical]).run()
+      let normalized = surface(@fs.read_file(expected_xml[:]).text())
+      for section in ["<hmtx>", "<vmtx>"] {
+        if raw[section] != normalized[section] { fail("reference canonicalization changed per-glyph metrics") }
+      }
+      if raw["<glyf>"].filter(line => !line.has_prefix("<TTGlyph ")) != normalized["<glyf>"].filter(line => !line.has_prefix("<TTGlyph ")) {
+        fail("reference canonicalization changed outline/component/program data")
+      }
+    }
     let observed = surface(@fs.read_file(actual_xml[:]).text())
     let reference = surface(@fs.read_file(expected_xml[:]).text())
     if observed.length() != 4 || reference.length() != 4 { fail("incomplete vertical oracle XML") }
@@ -67,6 +87,9 @@ async fn main {
     let metric = "<mtx name=\"A\" height=\"" + height.to_string() + "\" tsb=\"" + tsb.to_string() + "\"/>"
     if !observed["<vmtx>"].contains(metric) { fail("independent vertical metric assertion failed: " + metric) }
     @shell.Cmd(moon, prefix + ["inspect", actual]).run()
+    let repeated = directory + "/repeated-" + index.to_string() + ".ttf"
+    @shell.Cmd(moon, prefix + ["instance", source, repeated, coordinates[1], coordinates[0]]).run()
+    if @fs.read_file(actual[:]).binary() != @fs.read_file(repeated[:]).binary() { fail("axis argument order changed font bytes") }
     println(fixture + " differential passed: " + coordinates.join(",") + "; complete vhea/vmtx and glyph geometry")
   }
 }

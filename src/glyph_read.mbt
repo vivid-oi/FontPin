@@ -200,21 +200,20 @@ fn parse_font_glyph(
       if glyph >= glyph_count {
         raise Invalid("composite glyph reference out of range")
       }
-      if (flags & 2) == 0 {
-        raise Unsupported(
-          "point-matched composite glyphs are not yet supported",
-        )
+      let xy_arguments = (flags & 2) != 0
+      if components.is_empty() && !xy_arguments {
+        raise Invalid("first composite component must use XY offsets")
       }
       let (x, y) = if (flags & 1) != 0 {
         let a = cursor.u16()
         let b = cursor.u16()
         (
-          if a >= 32768 {
+          if xy_arguments && a >= 32768 {
             a - 65536
           } else {
             a
           },
-          if b >= 32768 {
+          if xy_arguments && b >= 32768 {
             b - 65536
           } else {
             b
@@ -223,7 +222,18 @@ fn parse_font_glyph(
       } else {
         let a = cursor.u8()
         let b = cursor.u8()
-        (if a >= 128 { a - 256 } else { a }, if b >= 128 { b - 256 } else { b })
+        (
+          if xy_arguments && a >= 128 {
+            a - 256
+          } else {
+            a
+          },
+          if xy_arguments && b >= 128 {
+            b - 256
+          } else {
+            b
+          },
+        )
       }
       let transform_start = cursor.pos
       let scale_flags = flags & 200
@@ -300,8 +310,9 @@ fn vary_glyph(
     }
     Composite(components~, ..) => {
       for component in components {
-        xs.push(component.x.to_double())
-        ys.push(component.y.to_double())
+        let xy = (component.flags & 2) != 0
+        xs.push(if xy { component.x.to_double() } else { 0.0 })
+        ys.push(if xy { component.y.to_double() } else { 0.0 })
       }
       []
     }
@@ -333,8 +344,12 @@ fn vary_glyph(
       }
     Composite(components~, ..) =>
       for i, component in components {
-        component.x = round_glyph_coordinate(xs[i])
-        component.y = round_glyph_coordinate(ys[i])
+        // OpenType requires ignoring parent deltas on point-aligned
+        // components: their placement follows the varied child contours.
+        if (component.flags & 2) != 0 {
+          component.x = round_glyph_coordinate(xs[i])
+          component.y = round_glyph_coordinate(ys[i])
+        }
       }
   }
   // Phantom points may lie outside the outline's signed 16-bit domain, but
