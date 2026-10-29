@@ -26,6 +26,8 @@ pub struct Font {
 }
 pub fn Font::axes(Self) -> Array[Axis]
 pub fn Font::instantiate(Self, Map[String, Double], max_bytes? : Int32, work_limit? : Int32) -> Instance raise FontError
+pub fn Font::instantiate_named(Self, Int32, max_bytes? : Int32, work_limit? : Int32) -> Instance raise FontError
+pub fn Font::named_instances(Self) -> Array[NamedInstance] raise FontError
 pub fn Font::parse(Bytes, max_bytes? : Int32) -> Self raise FontError
 
 pub struct Instance {
@@ -33,6 +35,16 @@ pub struct Instance {
 }
 pub fn Instance::report_json(Self) -> Json
 pub fn Instance::to_bytes(Self) -> Bytes
+
+pub struct NamedInstance {
+  index : Int32
+  source_index : Int32?
+  name_id : Int32
+  label : String
+  postscript_name_id : Int32?
+  coordinates : Map[String, Double]
+} derive(ToJson)
+pub fn NamedInstance::to_json(Self) -> Json
 
 // Type aliases
 

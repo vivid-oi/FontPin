@@ -12,7 +12,7 @@ async fn execute() -> Unit {
   let args = @env.args()
   if args.length() == 2 && ["help", "--help"].contains(args[1]) {
     @stdio.stdout.write(
-      "FontPin: freeze all axes of a supported variable TrueType font\n\ninspect FILE\ninstance INPUT.ttf OUTPUT.ttf [axis=value ...]\n\nOmitted axes use defaults. OUTPUT must not exist. Diagnostics go to stderr.\n",
+      "FontPin: freeze all axes of a supported variable TrueType font\n\ninspect FILE\npresets FILE\ninstance INPUT.ttf OUTPUT.ttf [axis=value ...]\nnamed INPUT.ttf OUTPUT.ttf INDEX\n\nOmitted axes use defaults. OUTPUT must not exist. Diagnostics go to stderr.\n",
     )
     return
   }
@@ -22,8 +22,25 @@ async fn execute() -> Unit {
     )
     return
   }
+  if args.length() == 3 && args[1] == "presets" {
+    let font = @fontpin.Font::parse(read_font(args[2]))
+    @stdio.stdout.write(Json(font.named_instances()).stringify() + "\n")
+    return
+  }
+  if args.length() == 5 && args[1] == "named" {
+    let index = @string.parse_int(args[4]) catch {
+      _ => fail("named instance INDEX must be an integer")
+    }
+    let font = @fontpin.Font::parse(read_font(args[2]))
+    let instance = font.instantiate_named(index)
+    publish_font(args[3], instance.to_bytes())
+    @stdio.stdout.write(instance.report_json().stringify() + "\n")
+    return
+  }
   if args.length() < 4 || args[1] != "instance" {
-    fail("usage: inspect FILE | instance INPUT OUTPUT [axis=value ...]")
+    fail(
+      "usage: inspect FILE | presets FILE | instance INPUT OUTPUT [axis=value ...] | named INPUT OUTPUT INDEX",
+    )
   }
   let coordinates : Map[String, Double] = Map([])
   for arg in args[4:] {

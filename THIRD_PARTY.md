@@ -35,3 +35,5 @@ Language metadata follows the [OpenType name specification](https://learn.micros
 The command-line file-publication workflow in `src/command/files.mbt` was adapted for binary font output from the author's earlier [MBTRelMask](https://github.com/vivid-oi/MBTRelMask) project, which is Apache-2.0 licensed. That file retains Apache-2.0 licensing; the full license is in `LICENSES/Apache-2.0.txt`. The font algorithms and other new source files use this repository's MIT license.
 
 All generated font outputs remain subject to their source font licenses. FontPin adds no branding, attribution string or watermark to font data; preserving upstream copyright and license records is intentional.
+
+Named-instance enumeration follows the [OpenType fvar specification](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar). `fixtures/presets/NamedProbe.ttx` is a repository-authored MIT derivative of CVTProbe. `src/presets_fixture_test.mbt` embeds its fontTools-compiled bytes solely for portable black-box tests, and `checks/embed_named_fixture.mbtx` reproduces those bytes. No external font implementation or named-instance test source was copied.

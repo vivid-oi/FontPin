@@ -1,0 +1,50 @@
+----
+import {
+  "moonbitlang/async@0.22.5",
+  "moonbitlang/async@0.22.5/shell",
+  "moonbitlang/async@0.22.5/fs",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+}
+----
+
+async fn main {
+  let args = @env.args()
+  let target = if args.length() > 1 { args[1] } else { "wasm" }
+  let moon = if args.length() > 2 { args[2] } else { "moon" }
+  let directory = @fs.tmpdir(prefix="fontpin-presets-")
+  defer {
+    for name in @fs.readdir(directory[:]) { @fs.remove((directory + "/" + name)[:]) }
+    @fs.rmdir(directory[:])
+  }
+  let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
+  let source = "fixtures/robotomono/RobotoMono.ttf"
+  let original = @fs.read_file(source).binary()
+  let catalog = @shell.Cmd(moon, prefix + ["presets", source]).output()
+  catalog.check()
+  guard @json.parse(catalog.stdout()) is Array(entries) else { fail("catalog must be an array") }
+  let labels = ["Regular", "Thin", "ExtraLight", "Light", "Medium", "SemiBold", "Bold"]
+  let weights = [400, 100, 200, 300, 500, 600, 700]
+  if entries.length() != labels.length() { fail("unexpected Roboto Mono preset count") }
+  for index, entry in entries {
+    guard entry is { "index": Number(actual_index, ..), "label": String(label), "coordinates": { "wght": Number(weight, ..), .. }, .. } else { fail("incomplete named metadata") }
+    if actual_index != index.to_double() || label != labels[index] || weight != weights[index].to_double() { fail("preset metadata differs from the real-font expected catalog") }
+    let named = directory + "/named-" + index.to_string() + ".ttf"
+    let explicit = directory + "/axes-" + index.to_string() + ".ttf"
+    @shell.Cmd(moon, prefix + ["named", source, named, index.to_string()]).run()
+    @shell.Cmd(moon, prefix + ["instance", source, explicit, "wght=" + weights[index].to_string()]).run()
+    if @fs.read_file(named[:]).binary() != @fs.read_file(explicit[:]).binary() { fail("named output differs from exact coordinate conversion") }
+    @shell.Cmd(moon, prefix + ["inspect", named]).run()
+  }
+  let absent = directory + "/absent.ttf"
+  for selector in ["-1", "7", "2147483647", "1.5", "Bold"] {
+    let refusal = @shell.Cmd(moon, prefix + ["named", source, absent, selector]).output()
+    if refusal.exit_code() == 0 || @fs.exists(absent[:]) || refusal.stderr().is_empty() { fail("invalid named selector published output") }
+  }
+  let existing = directory + "/named-0.ttf"
+  let before = @fs.read_file(existing[:]).binary()
+  if @shell.Cmd(moon, prefix + ["named", source, existing, "6"]).output().exit_code() == 0 || @fs.read_file(existing[:]).binary() != before { fail("named output overwrote an existing destination") }
+  @shell.Cmd(moon, prefix + ["named", source, absent, "6"]).run()
+  if @fs.read_file(source).binary() != original { fail("named workflow changed its source") }
+  println("Named presets workflow: seven real-font styles, coordinate equivalence, static reload, invalid selectors, no-clobber and recovery passed")
+}

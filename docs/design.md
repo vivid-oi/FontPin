@@ -12,6 +12,8 @@ FontPin takes a variable TrueType font and a complete design position and produc
 
 `Font::parse(Bytes)` creates an immutable parsed source; `axes()` returns a detached array. `Font::instantiate(Map[String, Double])` validates and builds a detached result. `Instance::to_bytes()` and `report_json()` expose the artifact and a compact summary. `inspect_font(Bytes)` serves both inputs and outputs. Typed errors make unsupported format features distinguishable from corrupt data and resource limits.
 
+`named_instances()` returns detached fvar positions, resolved labels and source-record identities, with the default first. `instantiate_named(index)` selects from that catalog and uses the same conversion/limit contract as explicit coordinates. It does not replace the established coordinate-based output naming policy.
+
 Every transformation occurs in local copies. A failed conversion leaves the source reusable. The command writes only after the library returns a complete, rechecked font. A sibling temporary file plus no-replace rename prevents a failed conversion or existing destination from becoming a partially published font; forced process termination can leave an orphan `.pending` file.
 
 ## Correctness choices

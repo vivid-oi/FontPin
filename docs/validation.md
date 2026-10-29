@@ -14,6 +14,10 @@ Native tests execute the compiled code and the file CLI. They require a working 
 
 The gate checks formatting, regenerated public interfaces, strict compilation, build and tests. Wasm and native also run the real-file workflow in `checks/workflow.mbtx`: conversion, output reload, byte-for-byte determinism, no-clobber publication, invalid coordinates, unsupported variable layout, truncated input, and recovery after refusal.
 
+Wasm and native additionally run `checks/presets_workflow.mbtx`: enumerate all seven Roboto Mono styles, check their expected labels/weights, export each by catalog index and compare its bytes with explicit coordinate conversion. Every output is reloaded; invalid/out-of-range selectors, existing destinations, source preservation and recovery are checked. The same workflow runs as part of actual native execution on Linux, macOS and Windows.
+
+Portable named-instance tests use the repository-authored `NamedProbe.ttx` compiled into test-only bytes. They check default ordering, source indices, two-axis positions, optional PostScript IDs, detached maps, coordinate-equivalent output, static reload and limits. White-box cases cover omitted default records, invalid reserved flags and references, non-default misuse of IDs 2/17/6, out-of-range coordinates, UTF-16 pairs, malformed strings and catalog limits. No named-style performance claim is made.
+
 Standalone `.mbtx` scripts resolve their own dependencies. Each explicitly pins async `0.22.5`, matching `moon.mod`; unversioned script imports can select a newer release incompatible with the pinned compiler even when the project dependency is fixed.
 
 Each oracle first builds the project for its requested target, resolving the pinned project dependencies in a fresh clone, before invoking the CLI with `--frozen`. `moon update` updates the registry index and does not by itself populate the project's dependency directory.

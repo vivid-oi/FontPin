@@ -43,6 +43,10 @@ This upstream synthetic font contains `cvar`, vertical metrics, `ltag` and other
 
 `names/LocalizedProbe.ttx` is authored in this repository under MIT, derived from VerticalProbe. It adds Chinese family/full/license names and `ltag` language `zh-Hant`. The names workflow checks every numeric record identity, localized full-name prefixes, unchanged family/license values and exact language-table bytes at four weights. Format-1 language strings are separately constructed in unit tests.
 
+## Named-instance probe
+
+`presets/NamedProbe.ttx` derives from this repository's MIT CVTProbe. It defines three two-axis named records, with the default deliberately second in fvar order. The portable black-box fixture in `src/presets_fixture_test.mbt` is compiled with fontTools 4.67.0, preserving the fixed source timestamp. Regenerate it with `moon run checks/embed_named_fixture.mbtx -- python`, then `moon fmt`. It is synthetic; `checks/presets_workflow.mbtx` separately verifies all seven presets of the unmodified Roboto Mono production font.
+
 ## Point-aligned composite probe
 
 `composites/AttachmentProbe.ttx` is authored in this repository under MIT, derived from VerticalProbe. It adds `joined` and `nested` components (five glyphs total), contour-point attachments, scaling, nested contour indices and nonempty composite instructions. Parent gvar deltas on the attached component are deliberately nonzero (`123,-77`) to verify the specification's ignore rule. The XY-positioned sibling has deltas `(10,-5)`, deliberately producing fractional component offsets at the intermediate coordinate. The reference comparison retains this case; see the bounding-box treatment in `docs/validation.md`.

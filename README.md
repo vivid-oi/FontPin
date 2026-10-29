@@ -17,6 +17,15 @@ moon run --target wasm src/command -- inspect RobotoMono650.ttf
 
 The example uses the unmodified, licensed Roboto Mono variable font. The output has 1,006 glyphs and no variable outline/metric tables (`fvar`, `avar`, `gvar`, `HVAR`, `MVAR`, `cvar`). Omitted axes use their defaults. Coordinates must be finite, known and in range. Output paths must be new; conversion completes before a temporary file is synced and renamed without replacement. Failure returns a nonzero status and a diagnostic on stderr. Success writes JSON on stdout.
 
+Use the designer's named styles without looking up axis coordinates:
+
+```sh
+moon run --target wasm src/command -- presets fixtures/robotomono/RobotoMono.ttf
+moon run --target wasm src/command -- named fixtures/robotomono/RobotoMono.ttf RobotoMonoBold.ttf 6
+```
+
+For this pinned fixture, index 0 is Regular (400) and index 6 is Bold (700). Catalog indices are local to the source font. The library exposes `Font::named_instances()` and `instantiate_named(index)`; named conversion follows the existing deterministic coordinate-based output naming policy.
+
 ## Library
 
 Import `"vivid-oi/fontpin" @fontpin` in your `moon.pkg`:
@@ -40,11 +49,14 @@ let report = instance.report_json()
 - Vertical TrueType metrics: `vhea` 1.0/1.1 and compressed `vmtx`, gvar top/bottom phantom interpolation, final top bearings and rebuilt vertical summary fields. MVAR vertical line/caret metrics participate in the same conversion.
 - VVAR 1.0 advance, top and bottom bearing maps, including implicit advance indices and original-metric baselines. Derived bearings are combined before rounding; contradictory maps fail instead of losing a requested metric.
 - Multilingual names: preserve format-1 UTF-16 language tags and their numeric associations, and retain validated Apple `ltag` tables byte for byte. Rewritten Unicode names retain localized prefixes; unsupported legacy encodings fail explicitly.
+- Named fvar instances: validated positions/name IDs/flags, readable Unicode labels, source-record indices and optional PostScript name IDs. The default is first, synthesized only when absent. Catalog coordinates are detached; explicit fvar records remain visible, including duplicates.
 - Rebuilt `glyf`, long `loca`, `hmtx`, bounding boxes and horizontal summary metrics; updated OS/2 average width, weight/width/style flags, `post` slant and instance names. Copyright, family and license names are retained.
 - STAT 1.0–1.2 value filtering, including preservation of static axes absent from `fvar`; preserved static layout tables; sorted output, checked offsets, table checksums and whole-font checksum.
 - Bounded input/output sizes, axis/table counts, glyph and variation work. Limits are operation budgets, not a runtime deadline. Defaults: library 32 MiB, CLI 32,000,000 bytes, work 20 million.
 
 This version deliberately rejects CFF/CFF2, WOFF/WOFF2, collections, partial axis pinning, avar 2, TrueType VVAR vertical-origin maps, composite alignment to phantom/unavailable points, variable GDEF/GPOS/GSUB layout, signatures and unknown tables. Unsupported data is never silently discarded. Axis-dependent TrueType hint instructions (`GETVARIATION`/`GETDATA`) are refused; retained instructions are not executed or certified by FontPin. Container validation is not a complete font sanitizer.
+
+Named catalogs are bounded to 1,023 fvar records and 4,096 encoded bytes per selected label. Labels prefer US-English Windows Unicode, Unicode-platform, other Windows Unicode, then ASCII Mac Roman. Unsupported label encodings fail explicitly; this does not restrict the existing coordinate-based conversion API.
 
 Style flags use weight class ≥700 for bold, `ital` ≥0.5 for italic or nonzero `slnt` when no italic axis exists. Regular is set only when neither applies. This explicit policy can differ from fontTools retaining source style flags.
 

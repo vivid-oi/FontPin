@@ -32,3 +32,30 @@ Use `font.axes()` before choosing coordinates when processing an unknown family.
 Catch `Invalid`, `Unsupported` and `Limit` to present the appropriate diagnostic;
 do not publish an output when conversion fails. The real-font command-line
 workflow in the repository README supplies a complete file-to-file example.
+
+The font designer's presets can be selected with `font.named_instances()` and
+`font.instantiate_named(index)`. The catalog always places the default design
+position at index zero. Returned coordinates are detached from the source font.
+
+```mbt check
+///|
+fn designer_style(
+  source : Bytes,
+  index : Int32,
+) -> Bytes raise @fontpin.FontError {
+  @fontpin.Font::parse(source).instantiate_named(index).to_bytes()
+}
+
+///|
+test "named selection propagates typed source errors" {
+  assert_true(
+    try {
+      ignore(designer_style(b"OTTO", 0))
+      false
+    } catch {
+      @fontpin.Unsupported(_) => true
+      _ => false
+    },
+  )
+}
+```
