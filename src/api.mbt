@@ -46,13 +46,7 @@ fn preflight(tables : Map[String, Bytes]) -> Unit raise FontError {
     }
   }
   if tables.get("GDEF") is Some(data) {
-    let version = read_uint32(data, 0)
-    if version > 0x00010003U || version < 0x00010000U {
-      raise Unsupported("GDEF version")
-    }
-    if version >= 0x00010003U && read_u32(data, 14) != 0 {
-      raise Unsupported("GDEF variation store (variable layout)")
-    }
+    ignore(gdef_version(data))
   }
   for tag in ["GSUB", "GPOS"] {
     if tables.get(tag) is Some(data) {
@@ -92,6 +86,7 @@ pub fn Font::instantiate(
     outlines=Some(glyphs),
   )
   let tables = self.tables.copy()
+  instantiate_layout(tables, coords, work_limit, max_bytes)
   tables["glyf"] = glyphs.glyf
   tables["loca"] = glyphs.loca
   tables["hmtx"] = hmtx

@@ -1,5 +1,7 @@
 # Font corpus
 
+`layout/CaretProbe.ttx` is a repository-authored MIT derivative of CVTProbe. Its GDEF includes all three caret formats, attachment points, glyph/mark classification, mark-filtering sets and two-axis variation-store data. Expected varied caret positions are 150, 200, 275 and 300 at the four layout-oracle positions. This is synthetic layout evidence, not a rendered text comparison.
+
 The two TTF files below are unmodified upstream binaries. Fonts retain their own licenses. Their source versions are fixed so a failed conversion can be reproduced without a private font collection. Additional synthetic probes are described separately.
 
 | File | Upstream source | License | SHA-256 |

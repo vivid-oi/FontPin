@@ -1,0 +1,72 @@
+----
+import {
+  "moonbitlang/async@0.22.5",
+  "moonbitlang/async@0.22.5/shell",
+  "moonbitlang/async@0.22.5/fs",
+  "moonbitlang/core/env",
+}
+----
+
+fn layout_surface(xml : String) -> Array[String] {
+  let lines : Array[String] = []
+  for part in xml.split("\n") {
+    let line = part.trim().to_owned()
+    if line.is_empty() || line.has_prefix("<?xml") || line.has_prefix("<ttFont") || line == "</ttFont>" || line.has_prefix("<!--") { continue }
+    lines.push(line)
+  }
+  lines
+}
+
+async fn main {
+  let args = @env.args()
+  let target = if args.length() > 1 { args[1] } else { "wasm" }
+  let moon = if args.length() > 2 { args[2] } else { "moon" }
+  let python = if args.length() > 3 { args[3] } else { "python" }
+  let fixture = if args.length() > 4 { args[4] } else { "fixtures/layout/CaretProbe.ttx" }
+  @shell.Cmd(moon, ["build", "--target", target, "--deny-warn"]).run()
+  let directory = @fs.tmpdir(prefix="fontpin-layout-")
+  defer {
+    for name in @fs.readdir(directory[:]) { @fs.remove((directory + "/" + name)[:]) }
+    @fs.rmdir(directory[:])
+  }
+  let source = if fixture.has_suffix(".ttx") {
+    let path = directory + "/source.ttf"
+    @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "--no-recalc-timestamp", "-o", path, fixture]).run()
+    path
+  } else { fixture }
+  let original = @fs.read_file(source[:]).binary()
+  let cases = if fixture.contains("RobotoSlab") { [["wght=100"], ["wght=400"], ["wght=650"], ["wght=900"]] } else {
+    [["wght=100", "wdth=75"], ["wght=400", "wdth=100"], ["wght=650", "wdth=87.5"], ["wght=900", "wdth=125"]]
+  }
+  let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
+  for index, coordinates in cases {
+    let actual = directory + "/actual-" + index.to_string() + ".ttf"
+    let expected = directory + "/expected-" + index.to_string() + ".ttf"
+    @shell.Cmd(moon, prefix + ["instance", source, actual] + coordinates).run()
+    @shell.Cmd(python, ["-m", "fontTools.varLib.instancer", source] + coordinates + ["--static", "--no-recalc-timestamp", "-o", expected]).run()
+    let actual_xml = directory + "/actual-" + index.to_string() + ".ttx"
+    let expected_xml = directory + "/expected-" + index.to_string() + ".ttx"
+    let dump = ["-m", "fontTools.ttx", "-q", "-t", "GDEF", "-t", "GPOS", "-t", "GSUB", "-o"]
+    @shell.Cmd(python, dump + [actual_xml, actual]).run()
+    @shell.Cmd(python, dump + [expected_xml, expected]).run()
+    let text = @fs.read_file(actual_xml[:]).text()
+    if text.contains("<VarStore ") || text.contains("<DeltaFormat value=\"32768\"") { fail("static layout retained active variation data") }
+    let observed = layout_surface(text)
+    let reference = layout_surface(@fs.read_file(expected_xml[:]).text())
+    if observed != reference {
+      let length = if observed.length() < reference.length() { observed.length() } else { reference.length() }
+      for i in 0..<length { if observed[i] != reference[i] { fail(fixture + " " + coordinates.join(",") + " layout mismatch: expected " + reference[i] + "; observed " + observed[i]) } }
+      fail("layout XML length differs")
+    }
+    if fixture.has_suffix("CaretProbe.ttx") {
+      let caret = [150, 200, 275, 300][index]
+      if !observed.contains("<Coordinate value=\"" + caret.to_string() + "\"/>") { fail("independent caret coordinate check failed") }
+    }
+    let repeated = directory + "/repeat-" + index.to_string() + ".ttf"
+    @shell.Cmd(moon, prefix + ["instance", source, repeated] + coordinates).run()
+    if @fs.read_file(actual[:]).binary() != @fs.read_file(repeated[:]).binary() { fail("layout instancing is nondeterministic") }
+    @shell.Cmd(moon, prefix + ["inspect", actual]).run()
+    println("Layout differential passed: " + fixture + " " + coordinates.join(","))
+  }
+  if @fs.read_file(source[:]).binary() != original { fail("layout conversion changed its source") }
+}

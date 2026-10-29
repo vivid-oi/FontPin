@@ -41,6 +41,7 @@ moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/vertical/VVARP
 moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/horizontal/HorizontalProbe.ttx
 moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/composites/AttachmentProbe.ttx
 moon run checks/names_oracle.mbtx -- wasm moon python
+moon run checks/layout_oracle.mbtx -- wasm moon python
 ```
 
 The script calls the upstream `fontTools.varLib.instancer` and `fontTools.ttx` command-line modules with fontTools' default overlap-flag handling. No local Python implementation or generated Python test script participates. It converts the unmodified Roboto Mono fixture at weights 100, 400, 650 and 700, independently checks the output sfnt directory and checksums, then compares every glyph's decoded points/components, glyph order, character map and horizontal metrics. The comparison ignores XML indentation and comments, not geometry or metric differences. Font names and timestamp bytes are not compared to fontTools because naming policy and serialization layout can differ without changing glyph semantics.
@@ -80,6 +81,8 @@ There is one explicit reference normalization for this fixture. fontTools 4.67.0
 Attachment unit tests cover transform-before-alignment, XY flags ignored in point mode, byte/word unsigned arguments including 40000 and 65535, nested flattened point indexing, preserved instructions, prescribed parent-delta ignoring, unavailable/phantom points, resource limits and recovery. Existing cycle/depth tests remain active. Phantom-point alignment is explicitly unsupported.
 
 ## Scope of the evidence
+
+The layout oracle compiles the full `CaretProbe.ttx`, freezes four positions and compares every decoded GDEF/GPOS/GSUB XML field with fontTools. It verifies independent caret values, source preservation, static reload, deterministic bytes and absence of active VariationIndex/store data. Unit inputs check every GDEF truncation, invalid coverage/classes/offsets, overflow, work/output limits, ordinary Device preservation and 16-bit relocation refusal. GDEF stores shared with GPOS are still refused at this milestone. FontPin freezes layout tables for downstream shapers; it does not shape text or compare pixels itself.
 
 Passing these checks is evidence for the documented font/table subset and tested coordinates. It is not a claim that every OpenType font, shaping engine, pixel rasterizer or operating-system installer is compatible. In particular, variable GDEF/GPOS data must be refused until layout instancing is implemented; deleting it would invalidate the test's preservation contract.
 
