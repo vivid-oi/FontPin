@@ -28,6 +28,7 @@ moon run checks/oracle.mbtx -- wasm moon python
 moon run checks/oracle.mbtx -- native moon python
 moon run checks/variation_oracle.mbtx -- wasm moon python
 moon run checks/hints_oracle.mbtx -- wasm moon python
+moon run checks/vertical_oracle.mbtx -- wasm moon python
 ```
 
 The script calls the upstream `fontTools.varLib.instancer` and `fontTools.ttx` command-line modules with fontTools' default overlap-flag handling. No local Python implementation or generated Python test script participates. It converts the unmodified Roboto Mono fixture at weights 100, 400, 650 and 700, independently checks the output sfnt directory and checksums, then compares every glyph's decoded points/components, glyph order, character map and horizontal metrics. The comparison ignores XML indentation and comments, not geometry or metric differences. Font names and timestamp bytes are not compared to fontTools because naming policy and serialization layout can differ without changing glyph semantics.
@@ -46,7 +47,11 @@ The hints oracle compiles the repository-authored two-axis `CVTProbe.ttx` and co
 | 900 | 125 | `[536, -340, 96, 240]` |
 | 900 | 75 | `[552, -300, 96, 180]` |
 
-The intermediate case includes the `avar` weight mapping from normalized `0.5` to `0.75`, plus a cross-axis CVT tuple. The upstream `PartialInstancerTest-VF.ttx` is separately compiled intact as a rejection test for unsupported vertical metrics and language extensions. The only positive cvar font oracle in this release is the self-authored synthetic probe.
+The intermediate case includes the `avar` weight mapping from normalized `0.5` to `0.75`, plus a cross-axis CVT tuple. The upstream `PartialInstancerTest-VF.ttx` is separately compiled intact as a rejection test for unsupported language extensions. The only positive cvar font oracle in this release is the self-authored synthetic probe.
+
+The vertical oracle compiles `fixtures/vertical/VerticalProbe.ttx`, retaining its gvar/HVAR/MVAR/cvar and hint programs. At five weight/width positions it compares every glyph outline, horizontal metric, vertical metric and vhea field with fontTools. Only `numberOfVMetrics`, a storage-compression count, is excluded; all advances and bearings are compared. Independent expected `(advanceHeight, topSideBearing)` for glyph A are `(1000,100)`, `(970,80)`, `(1045,83)`, `(1080,90)` and `(1050,70)`. This exercises avar, negative deltas and vertical MVAR ascent. A generated static output is reloaded with `inspect` after every conversion.
+
+To run this example manually, first compile the TTX with `python -m fontTools.ttx -o VerticalProbe.ttf fixtures/vertical/VerticalProbe.ttx`, then run `moon run --target wasm src/command -- instance VerticalProbe.ttf Vertical650.ttf wght=650 wdth=87.5`. Expected A metrics are height 1045 and top bearing 83. Unit tests separately cover fractional rounding, compressed metric storage, mismatched table pairs, truncation, invalid reserved fields and metric overflow. No pixel-rasterization claim is made.
 
 ## Scope of the evidence
 

@@ -62,3 +62,4 @@ jobs:
       - run: moon run checks/oracle.mbtx -- wasm moon python
       - run: moon run checks/variation_oracle.mbtx -- wasm moon python
       - run: moon run checks/hints_oracle.mbtx -- wasm moon python
+      - run: moon run checks/vertical_oracle.mbtx -- wasm moon python

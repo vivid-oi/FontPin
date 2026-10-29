@@ -236,6 +236,7 @@ fn instantiate_glyphs(
     }
   }
   let work = Ref(0)
+  let vertical = vertical_metrics(tables, glyph_count)
   let glyphs : Array[FontGlyph] = []
   for gid in 0..<glyph_count {
     let (advance, lsb) = glyph_metrics(hmtx, gid, metric_count)
@@ -255,8 +256,15 @@ fn instantiate_glyphs(
     coords.length(),
     glyph_count,
   )
+  let vertical_phantoms : Array[(Int32, Double)?] = []
   for gid, glyph in glyphs {
-    vary_glyph(glyph, gvar, gid, coords, work, work_limit)
+    let metric = match vertical {
+      Some((data, count)) => Some(glyph_metrics(data, gid, count))
+      None => None
+    }
+    vertical_phantoms.push(
+      vary_glyph(glyph, gvar, gid, coords, work, work_limit, metric),
+    )
   }
   for gid, glyph in glyphs {
     calculate_glyph_bounds(glyphs, gid, work, work_limit)
@@ -269,11 +277,12 @@ fn instantiate_glyphs(
   let new_glyf : Array[Byte] = []
   let new_loca : Array[Byte] = []
   let new_hmtx : Array[Byte] = []
+  let new_vmtx : Array[Byte] = []
   let mut x_min = 32767
   let mut y_min = 32767
   let mut x_max = -32768
   let mut y_max = -32768
-  for glyph in glyphs {
+  for gid, glyph in glyphs {
     push_u32(new_loca, new_glyf.length().reinterpret_as_uint())
     let data = encode_font_glyph(glyph)
     if data.length() > 64_000_000 - new_glyf.length() {
@@ -287,6 +296,14 @@ fn instantiate_glyphs(
     }
     push_u16(new_hmtx, glyph.advance)
     push_i16(new_hmtx, glyph.lsb)
+    if vertical_phantoms[gid] is Some((height, top)) {
+      let bearing = top - glyph.y_max.to_double()
+      if bearing < -32768.5 || bearing >= 32767.5 {
+        raise Invalid("instanced top side bearing overflow")
+      }
+      push_u16(new_vmtx, height)
+      push_i16(new_vmtx, ot_round(bearing))
+    }
     if data.length() > 0 {
       if glyph.x_min < x_min {
         x_min = glyph.x_min
@@ -313,6 +330,11 @@ fn instantiate_glyphs(
     glyf: Bytes::from_array(new_glyf[:]),
     loca: Bytes::from_array(new_loca[:]),
     hmtx: Bytes::from_array(new_hmtx[:]),
+    vmtx: if vertical is Some(_) {
+      Some(Bytes::from_array(new_vmtx[:]))
+    } else {
+      None
+    },
     x_min,
     y_min,
     x_max,

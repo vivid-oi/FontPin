@@ -27,4 +27,8 @@ The font has three glyphs, one weight axis, a changing square outline, and four 
 
 `instancer/PartialInstancerTest-VF.ttx` is the unmodified four-glyph test fixture from [fontTools, commit `21b4060825fdb1259cf205208c49595b7cd670ec`](https://github.com/fonttools/fonttools/blob/21b4060825fdb1259cf205208c49595b7cd670ec/Tests/varLib/instancer/data/PartialInstancerTest-VF.ttx). Its SHA-256 is `5fe785f4f13d5cb65c7f9ada9fbff7cab47794828ea4f1f963c2a57f49d654c9`, matching the original LF bytes (Git blob `cee188460c00e4fca83d17dafcdaa78157aa0881`). The adjacent `instancer/LICENSE` preserves the exact upstream MIT license (Git blob `cc633905d333c4b42c1a0c8b34e9f734adeb6e1e`, SHA-256 `6787208f83f659ccbc2223b2fde952ffa6f7e8aca62f1a8a2bf5bc51bb1b2383`).
 
-This upstream synthetic font contains `cvar` and other variations, but it also contains unsupported `vhea`, `vmtx` and `ltag` tables. The test compiles the complete XML with the official TTX compiler and verifies FontPin refuses conversion without publishing output. None of those tables is removed to manufacture a successful conversion. This is rejection evidence, not a positive cvar compatibility claim.
+This upstream synthetic font contains `cvar`, vertical metrics and other variations, but its `ltag` table remains unsupported. The test compiles the complete XML with the official TTX compiler and verifies FontPin refuses conversion without publishing output. No table is removed to manufacture a successful conversion. This is rejection evidence, not a positive cvar compatibility claim.
+
+## Vertical metric probe
+
+`vertical/VerticalProbe.ttx` is authored in this repository under MIT, derived from `hints/CVTProbe.ttx`. Its three glyphs, two axes, top/bottom phantom deltas and vertical MVAR ascent are synthetic. No upstream production outline or fixture was copied into this probe. See `checks/vertical_oracle.mbtx` for five fontTools comparisons.

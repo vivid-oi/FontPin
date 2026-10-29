@@ -33,7 +33,7 @@ fn preflight(tables : Map[String, Bytes]) -> Unit raise FontError {
   let allowed = [
     "head", "hhea", "maxp", "OS/2", "hmtx", "cmap", "loca", "glyf", "name", "post",
     "gasp", "cvt ", "fpgm", "prep", "kern", "GSUB", "GPOS", "GDEF", "STAT", "fvar",
-    "avar", "gvar", "HVAR", "MVAR", "cvar",
+    "avar", "gvar", "HVAR", "MVAR", "cvar", "vhea", "vmtx",
   ]
   for tag, _ in tables {
     if !allowed.contains(tag) {
@@ -89,6 +89,9 @@ pub fn Font::instantiate(
   tables["glyf"] = glyphs.glyf
   tables["loca"] = glyphs.loca
   tables["hmtx"] = hmtx
+  if glyphs.vmtx is Some(metrics) {
+    update_vertical_header(tables, glyphs, metrics)
+  }
   let head = byte_array(tables["head"])
   set_i16(head, 50, 1)
   set_i16(head, 36, glyphs.x_min)

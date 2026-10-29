@@ -40,6 +40,7 @@ priv struct GlyphResult {
   glyf : Bytes
   loca : Bytes
   hmtx : Bytes
+  vmtx : Bytes?
   x_min : Int32
   y_min : Int32
   x_max : Int32
@@ -282,7 +283,8 @@ fn vary_glyph(
   coords : Array[Double],
   work : Ref[Int32],
   work_limit : Int32,
-) -> Unit raise FontError {
+  vertical : (Int32, Int32)?,
+) -> (Int32, Double)? raise FontError {
   let xs : Array[Double] = []
   let ys : Array[Double] = []
   let ends = match glyph.body {
@@ -310,11 +312,17 @@ fn vary_glyph(
   xs.push((left + glyph.advance).to_double())
   xs.push(0.0)
   xs.push(0.0)
-  // Vertical metrics require vmtx/VVAR and are rejected by the facade.
+  let (top, bottom) = match vertical {
+    Some((height, tsb)) => {
+      let top = glyph.y_max + tsb
+      (top.to_double(), (top - height).to_double())
+    }
+    None => (0.0, 0.0)
+  }
   ys.push(0.0)
   ys.push(0.0)
-  ys.push(0.0)
-  ys.push(0.0)
+  ys.push(top)
+  ys.push(bottom)
   apply_gvar(variation, gid, coords, xs, ys, ends, work, work_limit)
   match glyph.body {
     Empty => ()
@@ -342,4 +350,19 @@ fn vary_glyph(
   glyph.advance = (right - left).to_int()
   // Recomputed after the final glyph bounds are known.
   glyph.lsb = left.to_int()
+  match vertical {
+    None => None
+    Some(_) => {
+      let top = ys[real_points + 2]
+      let height = top - ys[real_points + 3]
+      if top.is_nan() ||
+        top < -2147483648.0 ||
+        top > 2147483647.0 ||
+        height < -0.5 ||
+        height >= 65535.5 {
+        raise Invalid("instanced vertical phantom metric overflow")
+      }
+      Some((ot_round(height), top))
+    }
+  }
 }

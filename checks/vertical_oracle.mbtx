@@ -1,0 +1,71 @@
+----
+import {
+  "moonbitlang/async@0.22.5",
+  "moonbitlang/async@0.22.5/shell",
+  "moonbitlang/async@0.22.5/fs",
+  "moonbitlang/core/env",
+}
+----
+
+fn surface(xml : String) -> Map[String, Array[String]] {
+  let result : Map[String, Array[String]] = Map([])
+  let mut active = ""
+  for part in xml.split("\n") {
+    let line = part.trim().to_owned()
+    if ["<vhea>", "<vmtx>", "<glyf>", "<hmtx>"].contains(line) {
+      active = line
+      result[active] = []
+    }
+    if active != "" && line != "" && !line.has_prefix("<!--") && !line.has_prefix("<numberOfVMetrics ") {
+      result[active].push(line)
+    }
+    if ["</vhea>", "</vmtx>", "</glyf>", "</hmtx>"].contains(line) { active = "" }
+  }
+  result
+}
+
+async fn main {
+  let args = @env.args()
+  let target = if args.length() > 1 { args[1] } else { "wasm" }
+  let moon = if args.length() > 2 { args[2] } else { "moon" }
+  let python = if args.length() > 3 { args[3] } else { "python" }
+  @shell.Cmd(moon, ["build", "--target", target, "--deny-warn"]).run()
+  let directory = @fs.tmpdir(prefix="fontpin-vertical-")
+  defer {
+    for name in @fs.readdir(directory[:]) { @fs.remove((directory + "/" + name)[:]) }
+    @fs.rmdir(directory[:])
+  }
+  let source = directory + "/VerticalProbe.ttf"
+  @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "-o", source, "fixtures/vertical/VerticalProbe.ttx"]).run()
+  let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
+  let cases = [(400, 100.0, 1000, 100), (100, 75.0, 970, 80), (650, 87.5, 1045, 83), (900, 125.0, 1080, 90), (900, 75.0, 1050, 70)]
+  for index, (weight, width, height, tsb) in cases {
+    let coordinates = ["wdth=" + width.to_string(), "wght=" + weight.to_string()]
+    let actual = directory + "/actual-" + index.to_string() + ".ttf"
+    let expected = directory + "/expected-" + index.to_string() + ".ttf"
+    @shell.Cmd(moon, prefix + ["instance", source, actual] + coordinates).run()
+    @shell.Cmd(python, ["-m", "fontTools.varLib.instancer", source] + coordinates + ["--static", "--no-recalc-timestamp", "-o", expected]).run()
+    let actual_xml = directory + "/actual-" + index.to_string() + ".ttx"
+    let expected_xml = directory + "/expected-" + index.to_string() + ".ttx"
+    let dump = ["-m", "fontTools.ttx", "-q", "-e", "-i", "-t", "vhea", "-t", "vmtx", "-t", "glyf", "-t", "hmtx", "-o"]
+    @shell.Cmd(python, dump + [actual_xml, actual]).run()
+    @shell.Cmd(python, dump + [expected_xml, expected]).run()
+    let observed = surface(@fs.read_file(actual_xml[:]).text())
+    let reference = surface(@fs.read_file(expected_xml[:]).text())
+    if observed.length() != 4 || reference.length() != 4 { fail("incomplete vertical oracle XML") }
+    for section, lines in reference {
+      guard observed.get(section) is Some(other) else { fail("missing " + section) }
+      if lines != other {
+        let length = if lines.length() < other.length() { lines.length() } else { other.length() }
+        for i in 0..<length {
+          if lines[i] != other[i] { fail(coordinates.join(",") + " " + section + ": expected " + lines[i] + "; observed " + other[i]) }
+        }
+        fail("vertical oracle line count differs in " + section)
+      }
+    }
+    let metric = "<mtx name=\"A\" height=\"" + height.to_string() + "\" tsb=\"" + tsb.to_string() + "\"/>"
+    if !observed["<vmtx>"].contains(metric) { fail("independent vertical metric assertion failed: " + metric) }
+    @shell.Cmd(moon, prefix + ["inspect", actual]).run()
+    println("VerticalProbe differential passed: " + coordinates.join(",") + "; complete vhea/vmtx and glyph geometry")
+  }
+}

@@ -159,5 +159,5 @@ async fn main {
   if refusal.exit_code() == 0 || @fs.exists(absent[:]) || !["vhea", "vmtx", "ltag"].any(tag => refusal.stderr().contains(tag)) {
     fail("complete upstream reference with unsupported tables was not safely refused")
   }
-  println("Unmodified upstream reference safely refused: vertical metrics/language extensions remain unsupported")
+  println("Unmodified upstream reference safely refused: language extensions remain unsupported")
 }

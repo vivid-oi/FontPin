@@ -18,7 +18,9 @@ Unit test fixtures are constructed within the tests to exercise binary boundarie
 
 `fixtures/hints/CVTProbe.ttx` is a repository-authored synthetic font derived from MetricProbe under the same MIT license. Its two-axis control-value variations and nonempty hint programs support cvar differential tests. This is not a production font or a rasterization correctness claim.
 
-`fixtures/instancer/PartialInstancerTest-VF.ttx` is an unmodified upstream fontTools test fixture from commit `21b4060825fdb1259cf205208c49595b7cd670ec`; its full MIT license is adjacent. It contains vertical metrics outside FontPin's current scope and is deliberately tested for rejection, without removing those tables. Exact provenance and SHA-256 are recorded in `fixtures/README.md`.
+`fixtures/vertical/VerticalProbe.ttx` is a repository-authored MIT synthetic font derived from CVTProbe. Its top/bottom phantom deltas and MVAR vertical ascent test vertical instancing; it is not a production CJK family. The format reference is Microsoft's [vhea specification](https://learn.microsoft.com/en-us/typography/opentype/spec/vhea), with fontTools 4.67.0 as the independent executable oracle.
+
+`fixtures/instancer/PartialInstancerTest-VF.ttx` is an unmodified upstream fontTools test fixture from commit `21b4060825fdb1259cf205208c49595b7cd670ec`; its full MIT license is adjacent. It still contains a language table outside FontPin's current scope and is deliberately tested for rejection, without removing any tables. Exact provenance and SHA-256 are recorded in `fixtures/README.md`.
 
 The command-line file-publication workflow in `src/command/files.mbt` was adapted for binary font output from the author's earlier [MBTRelMask](https://github.com/vivid-oi/MBTRelMask) project, which is Apache-2.0 licensed. That file retains Apache-2.0 licensing; the full license is in `LICENSES/Apache-2.0.txt`. The font algorithms and other new source files use this repository's MIT license.
 
