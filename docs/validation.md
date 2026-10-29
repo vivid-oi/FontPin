@@ -14,6 +14,8 @@ Native tests execute the compiled code and the file CLI. They require a working 
 
 The gate checks formatting, regenerated public interfaces, strict compilation, build and tests. Wasm and native also run the real-file workflow in `checks/workflow.mbtx`: conversion, output reload, byte-for-byte determinism, no-clobber publication, invalid coordinates, unsupported variable layout, truncated input, and recovery after refusal.
 
+Standalone `.mbtx` scripts resolve their own dependencies. Each explicitly pins async `0.22.5`, matching `moon.mod`; unversioned script imports can select a newer release incompatible with the pinned compiler even when the project dependency is fixed.
+
 ## Independent implementation comparison
 
 The oracle is a test dependency, not a FontPin runtime dependency:
@@ -22,11 +24,14 @@ The oracle is a test dependency, not a FontPin runtime dependency:
 python -m pip install fonttools==4.67.0
 moon run checks/oracle.mbtx -- wasm moon python
 moon run checks/oracle.mbtx -- native moon python
+moon run checks/variation_oracle.mbtx -- wasm moon python
 ```
 
 The script calls the upstream `fontTools.varLib.instancer` and `fontTools.ttx` command-line modules with fontTools' default overlap-flag handling. No local Python implementation or generated Python test script participates. It converts the unmodified Roboto Mono fixture at weights 100, 400, 650 and 700, independently checks the output sfnt directory and checksums, then compares every glyph's decoded points/components, glyph order, character map and horizontal metrics. The comparison ignores XML indentation and comments, not geometry or metric differences. Font names and timestamp bytes are not compared to fontTools because naming policy and serialization layout can differ without changing glyph semantics.
 
 See [the corpus provenance](../fixtures/README.md) for exact source revisions, hashes and font licenses. Small synthetic inputs in unit tests exercise malformed structures and boundary conditions separately from the real-font differential.
+
+The separate variation oracle compiles the repository-authored `MetricProbe.ttx` with the upstream TTX compiler and checks weights 100, 400, 650 and 900. It compares OS/2, hhea, post, glyf and hmtx XML against fontTools. The hhea `numberOfHMetrics` storage-compression field is excluded while every actual per-glyph advance and bearing is compared. OS/2 `fsSelection` receives a narrower check: the italic/bold/regular bits (`0x61`) must follow FontPin's documented style policy, and every other bit must match fontTools. At weight 900 FontPin sets bold (`32`); fontTools' default retains the source regular flag (`64`). No MVAR field is excluded. Independent expected-value assertions check positive, zero and negative MVAR deltas, including synchronized hhea ascent/descent. This is a synthetic global-metric test, not evidence for a production MVAR family.
 
 ## Scope of the evidence
 

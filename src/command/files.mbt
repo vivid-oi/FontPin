@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// File-publication workflow adapted from vivid-oi/MBTRelMask (Apache-2.0).
+// See THIRD_PARTY.md and LICENSES/Apache-2.0.txt.
+
 ///|
 async fn read_font(path : String) -> Bytes {
   let file = @fs.open(path[:], mode=ReadOnly)

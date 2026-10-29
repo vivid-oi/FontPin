@@ -214,3 +214,48 @@ test "checksummed unreferenced sfnt bytes are refused rather than discarded" {
   assert_true(rejected)
   ignore(Font::parse(source))
 }
+
+///|
+test "full MVAR workflow freezes global metrics without mutating the source" {
+  let tables = api_fixture_tables()
+  let os2 = byte_array(tables["OS/2"])
+  set_i16(os2, 68, 800)
+  set_i16(os2, 70, -200)
+  let hhea = byte_array(tables["hhea"])
+  set_i16(hhea, 4, 800)
+  set_i16(hhea, 6, -200)
+  tables["OS/2"] = Bytes::from_array(os2[:])
+  tables["hhea"] = Bytes::from_array(hhea[:])
+  tables["MVAR"] = metric_test_mvar(["hasc", "hdsc"])
+  let source = build_sfnt(tables, 100000)
+  let font = Font::parse(source)
+  let output = font.instantiate({ "wght": 700.0 }).to_bytes()
+  let result = parse_sfnt(output, 100000)
+  assert_false(result.contains("MVAR"))
+  assert_eq(read_i16(result["OS/2"], 68), 900)
+  assert_eq(read_i16(result["OS/2"], 70), -250)
+  assert_eq(read_i16(result["hhea"], 4), 900)
+  assert_eq(read_i16(result["hhea"], 6), -250)
+  assert_eq(font.instantiate({ "wght": 700.0 }).to_bytes(), output)
+  assert_eq(read_i16(parse_sfnt(source, 100000)["OS/2"], 68), 800)
+}
+
+///|
+test "MVAR overflow refuses one position and the font remains reusable" {
+  let tables = api_fixture_tables()
+  let os2 = byte_array(tables["OS/2"])
+  set_i16(os2, 68, 32760)
+  tables["OS/2"] = Bytes::from_array(os2[:])
+  tables["MVAR"] = metric_test_mvar(["hasc"])
+  let font = Font::parse(build_sfnt(tables, 100000))
+  let original = font.instantiate({ "wght": 400.0 }).to_bytes()
+  let rejected = try {
+    ignore(font.instantiate({ "wght": 700.0 }))
+    false
+  } catch {
+    Invalid(detail) => detail.contains("MVAR")
+    _ => false
+  }
+  assert_true(rejected)
+  assert_eq(font.instantiate({ "wght": 400.0 }).to_bytes(), original)
+}

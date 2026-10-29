@@ -12,3 +12,9 @@ Roboto Mono is a real one-axis family with `gvar`, `HVAR`, and `avar`, including
 Roboto Slab is deliberately a rejection fixture: its GDEF variation store and GPOS VariationIndex records require layout instancing, which the first release does not support. The test verifies refusal and absence of a published output. No unsupported table has been stripped to make this fixture pass.
 
 Font binaries and license files were downloaded directly from the linked commits on 2026-10-29. The license-file SHA-256 values are `50ab8dd54680d3473f649c9db86fece88434d097c7834475c1c72d2f8c429215` (Roboto Mono OFL) and `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30` (Roboto Slab Apache license).
+
+## Synthetic global-metric probe
+
+`metrics/MetricProbe.ttx` is a small test font authored for this repository and covered by the root MIT license. It is not a production typeface or a modified copy of Roboto Mono. The XML is the input format of the official [fontTools TTX compiler](https://fonttools.readthedocs.io/en/latest/ttx.html); table meanings follow the [OpenType MVAR specification](https://learn.microsoft.com/en-us/typography/opentype/spec/mvar).
+
+The font has three glyphs, one weight axis, a changing square outline, and four MVAR records (`cpht`, `hasc`, `hdsc`, `unds`) over positive and negative weight regions. It contains neither `cvar` nor variable layout. At weight 900 the declared global metrics must become ascender 780, descender -220, cap height 550, and underline thickness 52; the hhea ascender/descender also change because their original values match OS/2 typographic metrics. The differential script compares whole relevant tables with the upstream instancer and separately asserts those concrete values. The original XML is compiled to a temporary TTF during testing, so it can be reviewed without trusting a checked-in binary.

@@ -14,6 +14,8 @@ The implementation is written for this project against the specifications below.
 
 Unit test fixtures are constructed within the tests to exercise binary boundaries and variation algorithms. The fontTools process is an oracle, not proof of specification compliance in every case: for example, repeated packed-point indices have a dedicated specification-based regression test rather than relying on an upstream implementation's treatment.
 
-The command-line publication pattern uses the same documented `moonbitlang/async` file APIs as the author's earlier [MBTRelMask](https://github.com/vivid-oi/MBTRelMask) project. It was adapted for binary font output here; FontPin's font algorithms are separate. MBTRelMask is MIT licensed.
+`fixtures/metrics/MetricProbe.ttx` is a small synthetic font constructed for this project under the repository's MIT license. Its three glyphs and variation data were not copied from a production font. It checks MVAR line-height, cap-height and underline changes against fontTools; it is not evidence of broad production-font coverage for MVAR.
+
+The command-line file-publication workflow in `src/command/files.mbt` was adapted for binary font output from the author's earlier [MBTRelMask](https://github.com/vivid-oi/MBTRelMask) project, which is Apache-2.0 licensed. That file retains Apache-2.0 licensing; the full license is in `LICENSES/Apache-2.0.txt`. The font algorithms and other new source files use this repository's MIT license.
 
 All generated font outputs remain subject to their source font licenses. FontPin adds no branding, attribution string or watermark to font data; preserving upstream copyright and license records is intentional.

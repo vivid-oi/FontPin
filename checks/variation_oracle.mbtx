@@ -1,0 +1,129 @@
+----
+import {
+  "moonbitlang/async@0.22.5",
+  "moonbitlang/async@0.22.5/shell",
+  "moonbitlang/async@0.22.5/fs",
+  "moonbitlang/core/env",
+}
+----
+
+fn surface(xml : String) -> Map[String, Array[String]] {
+  let result : Map[String, Array[String]] = Map([])
+  let mut active = ""
+  for part in xml.split("\n") {
+    let line = part.trim().to_owned()
+    if ["<OS_2>", "<hhea>", "<post>", "<glyf>", "<hmtx>"].contains(line) {
+      active = line
+      result[active] = []
+    }
+    // This is a storage-layout field: FontPin emits one long hmtx record
+    // per glyph; fontTools may encode trailing identical advances compactly.
+    if active != "" && line != "" && !line.has_prefix("<!--") && !line.has_prefix("<numberOfHMetrics ") && !line.has_prefix("<fsSelection ") {
+      result[active].push(line)
+    }
+    if ["</OS_2>", "</hhea>", "</post>", "</glyf>", "</hmtx>"].contains(line) { active = "" }
+  }
+  result
+}
+
+fn fs_selection(xml : String) -> Int raise {
+  for part in xml.split("\n") {
+    let line = part.trim()
+    if line.has_prefix("<fsSelection ") {
+      let parts = line.split("\"").to_array()
+      if parts.length() != 3 { fail("invalid fsSelection XML") }
+      let mut result = 0
+      let mut count = 0
+      for char in parts[1] {
+        match char {
+          '0' => { result = result << 1; count += 1 }
+          '1' => { result = (result << 1) | 1; count += 1 }
+          ' ' => ()
+          _ => fail("invalid fsSelection bit")
+        }
+      }
+      if count != 16 { fail("fsSelection is not 16 bits") }
+      return result
+    }
+  }
+  fail("missing fsSelection field")
+}
+
+fn require_metric(sections : Map[String, Array[String]], section : String, field : String, value : Int) -> Unit raise {
+  guard sections.get(section) is Some(lines) else { fail("missing metric section " + section) }
+  let expected = "<" + field + " value=\"" + value.to_string() + "\"/>"
+  if !lines.contains(expected) { fail("expected concrete metric " + expected + " in " + section) }
+}
+
+async fn main {
+  let args = @env.args()
+  let target = if args.length() > 1 { args[1] } else { "wasm" }
+  let moon = if args.length() > 2 { args[2] } else { "moon" }
+  let python = if args.length() > 3 { args[3] } else { "python" }
+  let directory = @fs.tmpdir(prefix="fontpin-metrics-")
+  defer {
+    for name in @fs.readdir(directory[:]) { @fs.remove((directory + "/" + name)[:]) }
+    @fs.rmdir(directory[:])
+  }
+  let source = directory + "/MetricProbe.ttf"
+  @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "-o", source, "fixtures/metrics/MetricProbe.ttx"]).run()
+  let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
+  let mut previous : Map[String, Array[String]]? = None
+  for weight in [100, 400, 650, 900] {
+    let coordinate = "wght=" + weight.to_string()
+    let actual = directory + "/actual-" + weight.to_string() + ".ttf"
+    let expected = directory + "/expected-" + weight.to_string() + ".ttf"
+    @shell.Cmd(moon, prefix + ["instance", source, actual, coordinate]).run()
+    @shell.Cmd(python, ["-m", "fontTools.varLib.instancer", source, coordinate, "--static", "--no-recalc-timestamp", "-o", expected]).run()
+    let actual_xml = directory + "/actual-" + weight.to_string() + ".ttx"
+    let expected_xml = directory + "/expected-" + weight.to_string() + ".ttx"
+    let ttx = ["-m", "fontTools.ttx", "-q", "-t", "OS/2", "-t", "hhea", "-t", "post", "-t", "glyf", "-t", "hmtx", "-o"]
+    @shell.Cmd(python, ttx + [actual_xml, actual]).run()
+    @shell.Cmd(python, ttx + [expected_xml, expected]).run()
+    let observed_xml = @fs.read_file(actual_xml[:]).text()
+    let reference_xml = @fs.read_file(expected_xml[:]).text()
+    let observed = surface(observed_xml)
+    let reference = surface(reference_xml)
+    if observed.length() != 5 || reference.length() != 5 { fail("incomplete metric oracle XML") }
+    let observed_flags = fs_selection(observed_xml)
+    let reference_flags = fs_selection(reference_xml)
+    // FontPin's explicit style policy updates italic/bold/regular bits;
+    // the upstream default may retain the source regular-style flags.
+    if (observed_flags & 0x61) != (if weight >= 700 { 0x20 } else { 0x40 }) {
+      fail("FontPin style flags disagree with its documented weight policy")
+    }
+    if (observed_flags & 0xFF9E) != (reference_flags & 0xFF9E) {
+      fail("non-style fsSelection bits differ from fontTools")
+    }
+    let expected_metrics = match weight {
+      100 => (660, -190, 475, 34)
+      400 => (700, -200, 500, 40)
+      650 => (740, -210, 525, 46)
+      _ => (780, -220, 550, 52)
+    }
+    let (ascent, descent, cap_height, underline_thickness) = expected_metrics
+    require_metric(observed, "<OS_2>", "sTypoAscender", ascent)
+    require_metric(observed, "<OS_2>", "sTypoDescender", descent)
+    require_metric(observed, "<OS_2>", "sCapHeight", cap_height)
+    require_metric(observed, "<hhea>", "ascent", ascent)
+    require_metric(observed, "<hhea>", "descent", descent)
+    require_metric(observed, "<post>", "underlineThickness", underline_thickness)
+    for section, lines in reference {
+      guard observed.get(section) is Some(other) else { fail("missing section " + section) }
+      if lines != other {
+        let length = if lines.length() < other.length() { lines.length() } else { other.length() }
+        for i in 0..<length {
+          if lines[i] != other[i] {
+            fail(coordinate + " " + section + " mismatch at line " + i.to_string() + ": expected " + lines[i] + "; observed " + other[i])
+          }
+        }
+        fail(coordinate + " " + section + " line count differs")
+      }
+    }
+    if previous is Some(before) && before.get("<OS_2>") == observed.get("<OS_2>") {
+      fail("different weights produced identical global metrics")
+    }
+    previous = Some(observed)
+    println("MVAR differential passed for " + coordinate + ": MVAR fields, hhea, post, outlines and horizontal metrics; explicit style policy checked")
+  }
+}

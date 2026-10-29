@@ -60,3 +60,4 @@ jobs:
       - run: python -m pip install fonttools==4.67.0
       - run: moon update
       - run: moon run checks/oracle.mbtx -- wasm moon python
+      - run: moon run checks/variation_oracle.mbtx -- wasm moon python
