@@ -35,6 +35,10 @@ This upstream synthetic font contains `cvar`, vertical metrics, `ltag` and other
 
 `vertical/VVARProbe.ttx` derives from VerticalProbe under the same MIT license. It adds two-region VVAR maps: A's advance deltas `[80,-30]`, top-bearing deltas `[-10,-20]` and bottom-bearing deltas `[50,-10]`. The repeated zero row covers the empty glyphs. These agree with its gvar phantom/outline variations, allowing a meaningful fontTools comparison; separate unit inputs intentionally disagree to test refusal.
 
+## Horizontal metric probe
+
+`horizontal/HorizontalProbe.ttx` is a repository-authored MIT derivative of VerticalProbe, adding changing xMin and HVAR left/right maps. A's left delta is `[10,0]` and right delta `[0,-10]` in positive weight/negative width regions. Five instanced fonts are compared with fontTools, with independent A `(advance,lsb)` expectations `(600,0)`, `(590,0)`, `(610,8)`, `(620,10)`, `(610,10)`. This is synthetic horizontal-map evidence.
+
 ## Localized name probe
 
 `names/LocalizedProbe.ttx` is authored in this repository under MIT, derived from VerticalProbe. It adds Chinese family/full/license names and `ltag` language `zh-Hant`. The names workflow checks every numeric record identity, localized full-name prefixes, unchanged family/license values and exact language-table bytes at four weights. Format-1 language strings are separately constructed in unit tests.

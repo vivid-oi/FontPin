@@ -24,9 +24,10 @@ fn vvar_delta(
 }
 
 ///|
-fn metric_outline_height(
+fn metric_outline_size(
   tables : Map[String, Bytes],
   gid : Int32,
+  vertical : Bool,
 ) -> Int32 raise FontError {
   let loca = table_required(tables, "loca")
   let short = read_i16(table_required(tables, "head"), 50) == 0
@@ -44,7 +45,29 @@ fn metric_outline_height(
     return 0
   }
   let glyf = table_required(tables, "glyf")
-  read_i16(glyf, start + 8) - read_i16(glyf, start + 4)
+  if vertical {
+    read_i16(glyf, start + 8) - read_i16(glyf, start + 4)
+  } else {
+    read_i16(glyf, start + 6) - read_i16(glyf, start + 2)
+  }
+}
+
+///|
+fn instanced_outline_size(
+  glyphs : GlyphResult,
+  gid : Int32,
+  vertical : Bool,
+) -> Int32 raise FontError {
+  let start = read_u32(glyphs.loca, gid * 4)
+  let end = read_u32(glyphs.loca, gid * 4 + 4)
+  if start == end {
+    return 0
+  }
+  if vertical {
+    read_i16(glyphs.glyf, start + 8) - read_i16(glyphs.glyf, start + 4)
+  } else {
+    read_i16(glyphs.glyf, start + 6) - read_i16(glyphs.glyf, start + 2)
+  }
 }
 
 ///|
@@ -96,13 +119,7 @@ fn apply_vvar(
       raise Invalid("VVAR advance overflows unsigned 16-bit range")
     }
     let new_advance = ot_round(advance)
-    let start = read_u32(glyphs.loca, gid * 4)
-    let end = read_u32(glyphs.loca, gid * 4 + 4)
-    let height = if start == end {
-      0
-    } else {
-      read_i16(glyphs.glyf, start + 8) - read_i16(glyphs.glyf, start + 4)
-    }
+    let height = instanced_outline_size(glyphs, gid, true)
     let mut top = if top_map == 0 {
       read_i16(phantom, gid * 4 + 2).to_double()
     } else {
@@ -112,7 +129,7 @@ fn apply_vvar(
     if bottom_map != 0 {
       let old_bottom = old_advance -
         old_top -
-        metric_outline_height(tables, gid)
+        metric_outline_size(tables, gid, true)
       let bottom = old_bottom.to_double() +
         vvar_delta(data, store, bottom_map, gid, work, work_limit)
       if bottom < -2147483648.0 || bottom > 2147483647.0 {

@@ -30,6 +30,7 @@ moon run checks/variation_oracle.mbtx -- wasm moon python
 moon run checks/hints_oracle.mbtx -- wasm moon python
 moon run checks/vertical_oracle.mbtx -- wasm moon python
 moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/vertical/VVARProbe.ttx
+moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/horizontal/HorizontalProbe.ttx
 moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/composites/AttachmentProbe.ttx
 moon run checks/names_oracle.mbtx -- wasm moon python
 ```
@@ -55,6 +56,8 @@ The intermediate case includes the `avar` weight mapping from normalized `0.5` t
 The vertical oracle compiles `fixtures/vertical/VerticalProbe.ttx`, retaining its gvar/HVAR/MVAR/cvar and hint programs. At five weight/width positions it compares every glyph outline, horizontal metric, vertical metric and vhea field with fontTools. Only `numberOfVMetrics`, a storage-compression count, is excluded; all advances and bearings are compared. Independent expected `(advanceHeight, topSideBearing)` for glyph A are `(1000,100)`, `(970,80)`, `(1045,83)`, `(1080,90)` and `(1050,70)`. This exercises avar, negative deltas and vertical MVAR ascent. A generated static output is reloaded with `inspect` after every conversion.
 
 The same oracle accepts an optional fixture path. Its second CI invocation compiles `VVARProbe.ttx`, which has matching gvar and VVAR data, and checks the same five positions. VVAR must disappear from static output. This agrees with fontTools' full TrueType instancing while exercising FontPin's original-baseline map evaluation. Unit tests independently check implicit indices, bottom-only maps, unsigned/signed overflow, every table truncation, unsupported map/origin formats, work limits, complementary half-unit rounding, contradictory maps and recovery. If explicit top and bottom mappings produce different rounded top bearings after deriving from the final outline, FontPin refuses the position. This is a deliberate preservation boundary, not a claim to accept every VVAR font.
+
+The horizontal-map invocation compiles `HorizontalProbe.ttx` at those same five positions. It compares every glyph and horizontal/vertical metric with fontTools while independently checking A's advances and left bearings. The left-bearing map changes xMin-related bearings, and the right-bearing map changes with width. Unit tests separately check right-only derivation, half-unit rounding before subtraction, contradictory maps, overflow, all table truncations, malformed offsets, evaluation work and recovery. Both explicit bearings must lead to the same rounded stored left bearing. For a manual example, compile this TTX and pin `wght=650 wdth=87.5`; A has advance 610 and left bearing 8.
 
 To run this example manually, first compile the TTX with `python -m fontTools.ttx -o VerticalProbe.ttf fixtures/vertical/VerticalProbe.ttx`, then run `moon run --target wasm src/command -- instance VerticalProbe.ttf Vertical650.ttf wght=650 wdth=87.5`. Expected A metrics are height 1045 and top bearing 83. Unit tests separately cover fractional rounding, compressed metric storage, mismatched table pairs, truncation, invalid reserved fields and metric overflow. No pixel-rasterization claim is made.
 

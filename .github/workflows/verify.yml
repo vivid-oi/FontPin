@@ -64,5 +64,6 @@ jobs:
       - run: moon run checks/hints_oracle.mbtx -- wasm moon python
       - run: moon run checks/vertical_oracle.mbtx -- wasm moon python
       - run: moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/vertical/VVARProbe.ttx
+      - run: moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/horizontal/HorizontalProbe.ttx
       - run: moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/composites/AttachmentProbe.ttx
       - run: moon run checks/names_oracle.mbtx -- wasm moon python

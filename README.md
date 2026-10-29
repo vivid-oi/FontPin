@@ -34,7 +34,7 @@ let report = instance.report_json()
 ## Implemented scope
 
 - Single TrueType sfnt fonts: `fvar`, `avar` 1.0, `gvar` tuple/point/delta decoding, IUP interpolation, simple outlines, XY-positioned and contour-point-aligned composite glyphs, and phantom-point metrics. Point alignment supports transformed and nested components and preserves unsigned point arguments.
-- HVAR item variation stores and advance/left-side-bearing maps. Metrics use the original values to avoid applying the same advance variation twice.
+- HVAR item variation stores and advance/left/right-bearing maps. Metrics use original values and final outline widths to avoid double application. Right-only maps derive left bearings; conflicting left/right maps are refused after combined rounding.
 - MVAR global metrics: line, cap/x-height, sub/superscript, strike/underline and horizontal caret metrics, plus validated gasp thresholds. Originally identical OS/2 and hhea line metrics stay synchronized; intentionally different line metrics remain different.
 - cvar control-value freezing: interpolate CVT deltas at the pinned position, round once after accumulation and retain hint programs. Shared/private sparse CVT references and repeated references are handled without glyph IUP interpolation.
 - Vertical TrueType metrics: `vhea` 1.0/1.1 and compressed `vmtx`, gvar top/bottom phantom interpolation, final top bearings and rebuilt vertical summary fields. MVAR vertical line/caret metrics participate in the same conversion.
@@ -44,7 +44,7 @@ let report = instance.report_json()
 - STAT 1.0–1.2 value filtering, including preservation of static axes absent from `fvar`; preserved static layout tables; sorted output, checked offsets, table checksums and whole-font checksum.
 - Bounded input/output sizes, axis/table counts, glyph and variation work. Limits are operation budgets, not a runtime deadline. Defaults: library 32 MiB, CLI 32,000,000 bytes, work 20 million.
 
-This version deliberately rejects CFF/CFF2, WOFF/WOFF2, collections, partial axis pinning, avar 2, TrueType VVAR vertical-origin maps, composite alignment to phantom/unavailable points, HVAR right-side-bearing maps, variable GDEF/GPOS/GSUB layout, signatures and unknown tables. Unsupported data is never silently discarded. Axis-dependent TrueType hint instructions (`GETVARIATION`/`GETDATA`) are refused; retained instructions are not executed or certified by FontPin. Container validation is not a complete font sanitizer.
+This version deliberately rejects CFF/CFF2, WOFF/WOFF2, collections, partial axis pinning, avar 2, TrueType VVAR vertical-origin maps, composite alignment to phantom/unavailable points, variable GDEF/GPOS/GSUB layout, signatures and unknown tables. Unsupported data is never silently discarded. Axis-dependent TrueType hint instructions (`GETVARIATION`/`GETDATA`) are refused; retained instructions are not executed or certified by FontPin. Container validation is not a complete font sanitizer.
 
 Style flags use weight class ≥700 for bold, `ital` ≥0.5 for italic or nonzero `slnt` when no italic axis exists. Regular is set only when neither applies. This explicit policy can differ from fontTools retaining source style flags.
 

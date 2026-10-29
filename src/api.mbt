@@ -84,7 +84,13 @@ pub fn Font::instantiate(
   preflight(self.tables)
   let (coords, actual) = normalized_coordinates(self, coordinates)
   let glyphs = instantiate_glyphs(self.tables, coords, work_limit)
-  let hmtx = apply_hvar(self.tables, coords, glyphs.hmtx, work_limit~)
+  let hmtx = apply_hvar(
+    self.tables,
+    coords,
+    glyphs.hmtx,
+    work_limit~,
+    outlines=Some(glyphs),
+  )
   let tables = self.tables.copy()
   tables["glyf"] = glyphs.glyf
   tables["loca"] = glyphs.loca

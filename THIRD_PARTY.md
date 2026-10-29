@@ -22,6 +22,8 @@ Unit test fixtures are constructed within the tests to exercise binary boundarie
 
 `fixtures/vertical/VVARProbe.ttx` is derived from VerticalProbe under MIT, adding repository-authored VVAR rows and maps that match the existing phantom deltas. It checks the [OpenType VVAR specification](https://learn.microsoft.com/en-us/typography/opentype/spec/vvar); no upstream implementation or test data was copied. fontTools supplies the external comparison.
 
+`fixtures/horizontal/HorizontalProbe.ttx` derives from VerticalProbe under MIT. Its repository-authored gvar/HVAR data exercise changing xMin and explicit left/right-bearing maps, following the [HVAR specification](https://learn.microsoft.com/en-us/typography/opentype/spec/hvar). fontTools 4.67.0 supplies the independent comparison; no implementation or production font data was copied.
+
 `fixtures/names/LocalizedProbe.ttx` is a repository-authored MIT synthetic font derived from VerticalProbe, with Chinese Unicode names and an Apple language tag. It verifies name identity, family/license preservation and exact ltag retention with fontTools as decoder.
 
 `fixtures/composites/AttachmentProbe.ttx` is a repository-authored MIT synthetic font derived from VerticalProbe, with two nested point-aligned composites and parent deltas that the specification requires ignoring on attached components. The [OpenType glyf specification](https://learn.microsoft.com/en-us/typography/opentype/spec/glyf) defines alignment order and argument types. fontTools 4.67.0 supplies a separate instancer/TTX comparison; a documented reference recompile resolves its fractional-offset bounding-box serialization difference. No implementation or upstream fixture was copied for these composites.

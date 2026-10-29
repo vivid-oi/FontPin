@@ -161,10 +161,10 @@ test "HVAR malformed mapping and unexplained original metric bytes are refused" 
   set_u32(hvar, 16, 20U)
   tables["HVAR"] = Bytes::from_array(hvar[:])
   try apply_hvar(tables, [1.0], original) catch {
-    Unsupported(_) => ()
-    _ => fail("expected unsupported right-side-bearing mapping")
+    Invalid(_) => ()
+    _ => fail("expected invalid right-side-bearing map/context")
   } noraise {
-    _ => fail("expected unsupported right-side-bearing mapping")
+    _ => fail("expected invalid right-side-bearing map/context")
   }
   set_u32(hvar, 16, 0U)
   tables["HVAR"] = Bytes::from_array(hvar[:])

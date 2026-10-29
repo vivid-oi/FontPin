@@ -86,6 +86,11 @@ async fn main {
     }
     let metric = "<mtx name=\"A\" height=\"" + height.to_string() + "\" tsb=\"" + tsb.to_string() + "\"/>"
     if !observed["<vmtx>"].contains(metric) { fail("independent vertical metric assertion failed: " + metric) }
+    if fixture.has_suffix("HorizontalProbe.ttx") {
+      let (advance, left) = match index { 0 => (600, 0); 1 => (590, 0); 2 => (610, 8); 3 => (620, 10); _ => (610, 10) }
+      let horizontal = "<mtx name=\"A\" width=\"" + advance.to_string() + "\" lsb=\"" + left.to_string() + "\"/>"
+      if !observed["<hmtx>"].contains(horizontal) { fail("independent horizontal metric assertion failed: " + horizontal) }
+    }
     @shell.Cmd(moon, prefix + ["inspect", actual]).run()
     let repeated = directory + "/repeated-" + index.to_string() + ".ttf"
     @shell.Cmd(moon, prefix + ["instance", source, repeated, coordinates[1], coordinates[0]]).run()
