@@ -33,7 +33,7 @@ fn preflight(tables : Map[String, Bytes]) -> Unit raise FontError {
   let allowed = [
     "head", "hhea", "maxp", "OS/2", "hmtx", "cmap", "loca", "glyf", "name", "post",
     "gasp", "cvt ", "fpgm", "prep", "kern", "GSUB", "GPOS", "GDEF", "STAT", "fvar",
-    "avar", "gvar", "HVAR", "MVAR", "cvar", "vhea", "vmtx",
+    "avar", "gvar", "HVAR", "MVAR", "cvar", "vhea", "vmtx", "ltag",
   ]
   for tag, _ in tables {
     if !allowed.contains(tag) {

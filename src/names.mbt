@@ -4,14 +4,35 @@ fn update_instance_names(
   coordinates : Map[String, Double],
 ) -> Unit raise FontError {
   let source = table_required(tables, "name")
-  if read_u16(source, 0) != 0 {
-    raise Unsupported("name table format 1 language tags")
+  let format = read_u16(source, 0)
+  if format > 1 {
+    raise Unsupported("name table format must be 0 or 1")
   }
   let n = read_u16(source, 2)
   let base = read_u16(source, 4)
   require_range(source, 6, n * 12)
-  if base < 6 + n * 12 {
+  let language_count = if format == 1 {
+    read_u16(source, 6 + n * 12)
+  } else {
+    0
+  }
+  let header_size = 6 +
+    n * 12 +
+    (if format == 1 { 2 + language_count * 4 } else { 0 })
+  require_range(source, 0, header_size)
+  if base < header_size || base > source.length() {
     raise Invalid("name strings overlap records")
+  }
+  let ltag_count = validate_ltag(tables)
+  for i in 0..<language_count {
+    let p = 8 + n * 12 + i * 4
+    let length = read_u16(source, p)
+    let offset = read_u16(source, p + 2)
+    require_range(source, base + offset, length)
+    validate_language_tag(
+      source[base + offset:base + offset + length].to_owned(),
+      2,
+    )
   }
   let tags = coordinates.keys().to_array()
   tags.sort_by((a, b) => a.lexical_compare(b))
@@ -20,19 +41,57 @@ fn update_instance_names(
     parts.push(tag + coordinates[tag].to_string())
   }
   let style = parts.join("-")
-  let records : Array[Byte] = Array::make(6 + n * 12, 0)
+  // Preserve format-1 language records and their complete string pool, even
+  // when records share substrings or the pool contains unreferenced bytes.
+  let records : Array[Byte] = if format == 1 {
+    byte_array(source[0:base].to_owned())
+  } else {
+    Array::make(6 + n * 12, 0)
+  }
   let strings : Array[Byte] = []
+  if format == 1 {
+    for byte in source[base:] {
+      strings.push(byte)
+    }
+  }
+  set_u16(records, 0, format)
   set_u16(records, 2, n)
   set_u16(records, 4, records.length())
   for i in 0..<n {
     let p = 6 + i * 12
     let platform = read_u16(source, p)
+    let encoding = read_u16(source, p + 2)
+    let language = read_u16(source, p + 4)
+    if format == 1 && language >= 0x8000 && language - 0x8000 >= language_count {
+      raise Invalid("name language ID has no format-1 language tag")
+    }
+    if platform == 0 &&
+      language != 0xFFFF &&
+      language < 0x8000 &&
+      (if tables.contains("ltag") {
+        language >= ltag_count
+      } else {
+        language != 0
+      }) {
+      raise Invalid("Unicode name language ID has no ltag entry")
+    }
     let id = read_u16(source, p + 6)
     let len = read_u16(source, p + 8)
     let offset = read_u16(source, p + 10)
     require_range(source, base + offset, len)
     let original = source[base + offset:base + offset + len].to_owned()
     let replace = [2, 3, 4, 6, 17].contains(id)
+    if replace &&
+      (
+        (platform == 3 && ![0, 1, 10].contains(encoding)) ||
+        (platform == 1 && encoding != 0) ||
+        (platform == 0 && encoding > 6)
+      ) {
+      raise Unsupported("name encoding on rewritten record")
+    }
+    if replace && (platform == 0 || platform == 3) {
+      validate_name_utf16(original)
+    }
     let value = if replace {
       let label = if id == 6 {
         "-" + style.replace_all(old=".", new="_")
@@ -95,10 +154,12 @@ fn update_instance_names(
     for j in 0..<8 {
       records[p + j] = source[p + j]
     }
-    set_u16(records, p + 8, value.length())
-    set_u16(records, p + 10, strings.length())
-    for b in value {
-      strings.push(b)
+    if format == 0 || replace {
+      set_u16(records, p + 8, value.length())
+      set_u16(records, p + 10, strings.length())
+      for b in value {
+        strings.push(b)
+      }
     }
   }
   for b in strings {

@@ -1,0 +1,72 @@
+----
+import {
+  "moonbitlang/async@0.22.5",
+  "moonbitlang/async@0.22.5/shell",
+  "moonbitlang/async@0.22.5/fs",
+  "moonbitlang/core/env",
+}
+----
+
+fn names(xml : String) -> Map[String, String] {
+  let result : Map[String, String] = Map([])
+  let mut key = ""
+  let mut text = ""
+  for part in xml.split("\n") {
+    let line = part.trim().to_owned()
+    if line.has_prefix("<namerecord ") { key = line; text = "" }
+    else if line == "</namerecord>" { result[key] = text; key = "" }
+    else if key != "" { text += line }
+  }
+  result
+}
+
+fn u16(data : Bytes, pos : Int) -> Int { data[pos].to_int() * 256 + data[pos + 1].to_int() }
+fn u32(data : Bytes, pos : Int) -> Int { u16(data, pos) * 65536 + u16(data, pos + 2) }
+fn ltag(data : Bytes) -> Bytes raise {
+  for i in 0..<u16(data, 4) {
+    let p = 12 + i * 16
+    if data[p:p + 4] == b"ltag"[:] { return data[u32(data, p + 8):u32(data, p + 8) + u32(data, p + 12)].to_owned() }
+  }
+  fail("missing ltag table")
+}
+
+async fn main {
+  let args = @env.args()
+  let target = if args.length() > 1 { args[1] } else { "wasm" }
+  let moon = if args.length() > 2 { args[2] } else { "moon" }
+  let python = if args.length() > 3 { args[3] } else { "python" }
+  @shell.Cmd(moon, ["build", "--target", target, "--deny-warn"]).run()
+  let directory = @fs.tmpdir(prefix="fontpin-names-")
+  defer {
+    for name in @fs.readdir(directory[:]) { @fs.remove((directory + "/" + name)[:]) }
+    @fs.rmdir(directory[:])
+  }
+  let source = directory + "/LocalizedProbe.ttf"
+  @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "-o", source, "fixtures/names/LocalizedProbe.ttx"]).run()
+  let original_xml = directory + "/source.ttx"
+  let dump = ["-m", "fontTools.ttx", "-q", "-t", "name", "-t", "ltag", "-o"]
+  @shell.Cmd(python, dump + [original_xml, source]).run()
+  let original = names(@fs.read_file(original_xml[:]).text())
+  if original.length() != 12 { fail("localized probe must have 12 records") }
+  let original_ltag = ltag(@fs.read_file(source[:]).binary())
+  let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
+  for weight in [100, 400, 650, 900] {
+    let actual = directory + "/actual-" + weight.to_string() + ".ttf"
+    @shell.Cmd(moon, prefix + ["instance", source, actual, "wght=" + weight.to_string(), "wdth=85"]).run()
+    let xml = directory + "/actual-" + weight.to_string() + ".ttx"
+    @shell.Cmd(python, dump + [xml, actual]).run()
+    let observed = names(@fs.read_file(xml[:]).text())
+    if observed.length() != original.length() { fail("name record count changed") }
+    for key, value in original {
+      guard observed.get(key) is Some(other) else { fail("lost name identity: " + key) }
+      let parts = key.split("\"").to_array()
+      let id = parts[1].to_owned()
+      if !["2", "3", "4", "6", "17"].contains(id) && value != other { fail("untouched localized name changed") }
+      if id == "4" && !other.has_prefix(value) { fail("localized full-name prefix changed") }
+    }
+    if !observed.values().any(value => value.has_prefix("字体示例 常规 ")) { fail("missing localized instance name") }
+    if ltag(@fs.read_file(actual[:]).binary()) != original_ltag { fail("ltag bytes changed") }
+    @shell.Cmd(moon, prefix + ["inspect", actual]).run()
+    println("LocalizedProbe passed: wght=" + weight.to_string() + "; every name key, localized prefixes, family/license and exact ltag retained")
+  }
+}

@@ -23,12 +23,16 @@ The font has three glyphs, one weight axis, a changing square outline, and four 
 
 `hints/CVTProbe.ttx` extends this repository's own MetricProbe under the root MIT license. It has weight and width axes, a non-linear `avar` map, `gvar`, `HVAR`, `MVAR`, and `cvar`. CVT tuples include positive, negative and cross-axis contributions. The five documented test locations exercise defaults, axis boundaries and interpolation. Its three small nonempty TrueType programs use PUSHB/POP; bytes `0x91` and `0x92` occur only as pushed operands. Tests compare every program byte against the compiled source and check that operand bytes are not mistaken for variable-only opcodes. This probe is synthetic and does not establish rasterizer compatibility or support for a production cvar family.
 
-## Unmodified upstream rejection reference
+## Unmodified upstream instancing reference
 
 `instancer/PartialInstancerTest-VF.ttx` is the unmodified four-glyph test fixture from [fontTools, commit `21b4060825fdb1259cf205208c49595b7cd670ec`](https://github.com/fonttools/fonttools/blob/21b4060825fdb1259cf205208c49595b7cd670ec/Tests/varLib/instancer/data/PartialInstancerTest-VF.ttx). Its SHA-256 is `5fe785f4f13d5cb65c7f9ada9fbff7cab47794828ea4f1f963c2a57f49d654c9`, matching the original LF bytes (Git blob `cee188460c00e4fca83d17dafcdaa78157aa0881`). The adjacent `instancer/LICENSE` preserves the exact upstream MIT license (Git blob `cc633905d333c4b42c1a0c8b34e9f734adeb6e1e`, SHA-256 `6787208f83f659ccbc2223b2fde952ffa6f7e8aca62f1a8a2bf5bc51bb1b2383`).
 
-This upstream synthetic font contains `cvar`, vertical metrics and other variations, but its `ltag` table remains unsupported. The test compiles the complete XML with the official TTX compiler and verifies FontPin refuses conversion without publishing output. No table is removed to manufacture a successful conversion. This is rejection evidence, not a positive cvar compatibility claim.
+This upstream synthetic font contains `cvar`, vertical metrics, `ltag` and other variations. It has noncanonical MVAR ordering (`hasc` after `xhgt`). `checks/hints_oracle.mbtx` compiles the complete XML and verifies refusal for that precise reason without publishing output. No table is removed to manufacture success. It remains rejection evidence, not positive compatibility evidence.
 
 ## Vertical metric probe
 
 `vertical/VerticalProbe.ttx` is authored in this repository under MIT, derived from `hints/CVTProbe.ttx`. Its three glyphs, two axes, top/bottom phantom deltas and vertical MVAR ascent are synthetic. No upstream production outline or fixture was copied into this probe. See `checks/vertical_oracle.mbtx` for five fontTools comparisons.
+
+## Localized name probe
+
+`names/LocalizedProbe.ttx` is authored in this repository under MIT, derived from VerticalProbe. It adds Chinese family/full/license names and `ltag` language `zh-Hant`. The names workflow checks every numeric record identity, localized full-name prefixes, unchanged family/license values and exact language-table bytes at four weights. Format-1 language strings are separately constructed in unit tests.

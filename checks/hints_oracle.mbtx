@@ -156,8 +156,8 @@ async fn main {
   @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "-o", unsupported_source, "fixtures/instancer/PartialInstancerTest-VF.ttx"]).run()
   let absent = directory + "/unsupported.ttf"
   let refusal = @shell.Cmd(moon, prefix + ["instance", unsupported_source, absent, "wght=650", "wdth=85"]).output()
-  if refusal.exit_code() == 0 || @fs.exists(absent[:]) || !["vhea", "vmtx", "ltag"].any(tag => refusal.stderr().contains(tag)) {
-    fail("complete upstream reference with unsupported tables was not safely refused")
+  if refusal.exit_code() == 0 || @fs.exists(absent[:]) || !refusal.stderr().contains("MVAR metric tags are not strictly sorted") {
+    fail("noncanonical upstream MVAR order was not safely refused")
   }
-  println("Unmodified upstream reference safely refused: language extensions remain unsupported")
+  println("Unmodified upstream reference safely refused: MVAR records are not in required binary tag order")
 }
