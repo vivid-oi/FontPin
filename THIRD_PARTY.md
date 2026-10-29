@@ -20,6 +20,8 @@ Unit test fixtures are constructed within the tests to exercise binary boundarie
 
 `fixtures/vertical/VerticalProbe.ttx` is a repository-authored MIT synthetic font derived from CVTProbe. Its top/bottom phantom deltas and MVAR vertical ascent test vertical instancing; it is not a production CJK family. The format reference is Microsoft's [vhea specification](https://learn.microsoft.com/en-us/typography/opentype/spec/vhea), with fontTools 4.67.0 as the independent executable oracle.
 
+`fixtures/vertical/VVARProbe.ttx` is derived from VerticalProbe under MIT, adding repository-authored VVAR rows and maps that match the existing phantom deltas. It checks the [OpenType VVAR specification](https://learn.microsoft.com/en-us/typography/opentype/spec/vvar); no upstream implementation or test data was copied. fontTools supplies the external comparison.
+
 `fixtures/names/LocalizedProbe.ttx` is a repository-authored MIT synthetic font derived from VerticalProbe, with Chinese Unicode names and an Apple language tag. It verifies name identity, family/license preservation and exact ltag retention with fontTools as decoder.
 
 `fixtures/instancer/PartialInstancerTest-VF.ttx` is an unmodified upstream fontTools test fixture from commit `21b4060825fdb1259cf205208c49595b7cd670ec`; its full MIT license is adjacent. It is compiled intact as a rejection case: MVAR `hasc` follows `xhgt`, violating the required binary tag order. No table is removed and the implementation's validation is not weakened to force a positive result. Exact provenance and SHA-256 are recorded in `fixtures/README.md`.

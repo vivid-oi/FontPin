@@ -29,6 +29,7 @@ async fn main {
   let target = if args.length() > 1 { args[1] } else { "wasm" }
   let moon = if args.length() > 2 { args[2] } else { "moon" }
   let python = if args.length() > 3 { args[3] } else { "python" }
+  let fixture = if args.length() > 4 { args[4] } else { "fixtures/vertical/VerticalProbe.ttx" }
   @shell.Cmd(moon, ["build", "--target", target, "--deny-warn"]).run()
   let directory = @fs.tmpdir(prefix="fontpin-vertical-")
   defer {
@@ -36,7 +37,7 @@ async fn main {
     @fs.rmdir(directory[:])
   }
   let source = directory + "/VerticalProbe.ttf"
-  @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "-o", source, "fixtures/vertical/VerticalProbe.ttx"]).run()
+  @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "-o", source, fixture]).run()
   let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
   let cases = [(400, 100.0, 1000, 100), (100, 75.0, 970, 80), (650, 87.5, 1045, 83), (900, 125.0, 1080, 90), (900, 75.0, 1050, 70)]
   for index, (weight, width, height, tsb) in cases {
@@ -66,6 +67,6 @@ async fn main {
     let metric = "<mtx name=\"A\" height=\"" + height.to_string() + "\" tsb=\"" + tsb.to_string() + "\"/>"
     if !observed["<vmtx>"].contains(metric) { fail("independent vertical metric assertion failed: " + metric) }
     @shell.Cmd(moon, prefix + ["inspect", actual]).run()
-    println("VerticalProbe differential passed: " + coordinates.join(",") + "; complete vhea/vmtx and glyph geometry")
+    println(fixture + " differential passed: " + coordinates.join(",") + "; complete vhea/vmtx and glyph geometry")
   }
 }

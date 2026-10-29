@@ -20,6 +20,7 @@ Every transformation occurs in local copies. A failed conversion leaves the sour
 - Decode shared/private tuple points and runs, accumulate repeated point references, interpolate untouched contour points with IUP and keep phantom points separate.
 - Resolve composites with cycle, depth and work guards. Preserve glyph IDs, instructions, component transforms and all untouched tables.
 - Use original horizontal metrics as the HVAR baseline, then recompute summary metrics from final outlines and advances.
+- Use original vertical metrics as the VVAR baseline. Apply explicit top/bottom maps without adding phantom deltas twice; combine derived values before rounding, reject inconsistent final bearings and recompute vhea from final vmtx.
 - Mark overlap consistently with the reference instancer. This does not geometrically remove overlaps.
 - Rebuild canonical table order, lengths, alignment and checksums; parse the final container again. Unknown or unsupported semantics produce a diagnostic instead of a lossy result.
 
