@@ -14,7 +14,7 @@ async fn main {
     fail("target must be wasm, wasm-gc, js, or native")
   }
   @shell.Cmd(moon, ["fmt", "--check"]).run()
-  @shell.Cmd(moon, ["fmt", "--check", "checks/gate.mbtx", "checks/workflow.mbtx", "checks/oracle.mbtx", "checks/variation_oracle.mbtx", "checks/hints_oracle.mbtx", "checks/vertical_oracle.mbtx", "checks/names_oracle.mbtx", "checks/embed_named_fixture.mbtx", "checks/presets_workflow.mbtx"]).run()
+  @shell.Cmd(moon, ["fmt", "--check", "checks/gate.mbtx", "checks/workflow.mbtx", "checks/oracle.mbtx", "checks/variation_oracle.mbtx", "checks/hints_oracle.mbtx", "checks/vertical_oracle.mbtx", "checks/names_oracle.mbtx", "checks/embed_named_fixture.mbtx", "checks/presets_workflow.mbtx", "checks/batch_workflow.mbtx"]).run()
   @shell.Cmd(moon, ["info", "--target", target]).run()
   @shell.Cmd("git", ["diff", "--exit-code", "--", "*.mbti"]).run()
   @shell.Cmd(moon, ["check", "--frozen", "--target", target, "--deny-warn"]).run()
@@ -23,5 +23,6 @@ async fn main {
   if target == "wasm" || target == "native" {
     @shell.Cmd(moon, ["run", "--frozen", "checks/workflow.mbtx", "--", target, moon]).run()
     @shell.Cmd(moon, ["run", "--frozen", "checks/presets_workflow.mbtx", "--", target, moon]).run()
+    @shell.Cmd(moon, ["run", "--frozen", "checks/batch_workflow.mbtx", "--", target, moon]).run()
   }
 }

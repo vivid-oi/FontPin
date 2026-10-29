@@ -14,6 +14,10 @@ FontPin takes a variable TrueType font and a complete design position and produc
 
 `named_instances()` returns detached fvar positions, resolved labels and source-record identities, with the default first. `instantiate_named(index)` selects from that catalog and uses the same conversion/limit contract as explicit coordinates. It does not replace the established coordinate-based output naming policy.
 
+`BatchPlan::parse` validates a strict versioned manifest, rejects duplicate keys before schema interpretation, and sorts requests by filename. `to_json` returns an independent canonical value. `instantiate_batch` resolves all coordinate/preset selections before converting anything and returns artifacts only after every conversion and the aggregate byte budget succeed. This portable API does not perform filesystem writes.
+
+The batch command writes all completed artifacts and the manifest into an exclusively created sibling directory. It syncs and closes the files before publishing with a no-replace directory rename. A failure cleans only files created by that operation, preserving existing destinations. Cancellation is deferred during publication; forced termination can leave staging data. The guarantee concerns whole-directory visibility on supported filesystems, not power-loss durability or hostile concurrent filesystem mutation.
+
 Every transformation occurs in local copies. A failed conversion leaves the source reusable. The command writes only after the library returns a complete, rechecked font. A sibling temporary file plus no-replace rename prevents a failed conversion or existing destination from becoming a partially published font; forced process termination can leave an orphan `.pending` file.
 
 ## Correctness choices

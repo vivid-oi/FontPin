@@ -26,6 +26,23 @@ moon run --target wasm src/command -- named fixtures/robotomono/RobotoMono.ttf R
 
 For this pinned fixture, index 0 is Regular (400) and index 6 is Bold (700). Catalog indices are local to the source font. The library exposes `Font::named_instances()` and `instantiate_named(index)`; named conversion follows the existing deterministic coordinate-based output naming policy.
 
+Build an application's font bundle in one operation:
+
+```sh
+moon run --target wasm src/command -- batch fixtures/robotomono/RobotoMono.ttf app-fonts examples/app-fonts.json
+```
+
+The example creates `regular.ttf`, `semibold.ttf`, `bold.ttf` and `manifest.json` inside a new `app-fonts` directory. Every font is validated and converted before publishing the directory. Existing directories, including empty ones, and files are refused. The destination must end in a new directory name without a trailing separator. Publication uses a sibling staging directory and one no-replace rename; forced termination may leave an orphan `.pending` directory.
+
+```json
+{"version":1,"outputs":[
+  {"file":"regular.ttf","coordinates":{"wght":400}},
+  {"file":"bold.ttf","preset":6}
+]}
+```
+
+Each output selects exactly one coordinate object or named preset index from the same source font. Unknown fields and duplicate JSON keys are errors. Files use portable ASCII stems and `.ttf`; paths, device names and filenames differing only by ASCII case are refused. Manifests permit 1–16 outputs and are limited to 64 KiB by the CLI. The library's `BatchPlan::parse`, `to_json`, `filenames` and `Font::instantiate_batch` also work without filesystem access.
+
 ## Library
 
 Import `"vivid-oi/fontpin" @fontpin` in your `moon.pkg`:
@@ -50,6 +67,7 @@ let report = instance.report_json()
 - VVAR 1.0 advance, top and bottom bearing maps, including implicit advance indices and original-metric baselines. Derived bearings are combined before rounding; contradictory maps fail instead of losing a requested metric.
 - Multilingual names: preserve format-1 UTF-16 language tags and their numeric associations, and retain validated Apple `ltag` tables byte for byte. Rewritten Unicode names retain localized prefixes; unsupported legacy encodings fail explicitly.
 - Named fvar instances: validated positions/name IDs/flags, readable Unicode labels, source-record indices and optional PostScript name IDs. The default is first, synthesized only when absent. Catalog coordinates are detached; explicit fvar records remain visible, including duplicates.
+- Batch asset plans: canonical manifest round trips, validated selections, deterministic filename order, aggregate output-byte limits and no partial artifact list on failure. The CLI publishes a complete directory with a matching manifest/report.
 - Rebuilt `glyf`, long `loca`, `hmtx`, bounding boxes and horizontal summary metrics; updated OS/2 average width, weight/width/style flags, `post` slant and instance names. Copyright, family and license names are retained.
 - STAT 1.0–1.2 value filtering, including preservation of static axes absent from `fvar`; preserved static layout tables; sorted output, checked offsets, table checksums and whole-font checksum.
 - Bounded input/output sizes, axis/table counts, glyph and variation work. Limits are operation budgets, not a runtime deadline. Defaults: library 32 MiB, CLI 32,000,000 bytes, work 20 million.
@@ -62,6 +80,8 @@ Style flags use weight class ≥700 for bold, `ital` ≥0.5 for italic or nonzer
 
 Core library: Wasm, Wasm-GC, JavaScript and native. File CLI: Wasm and native, using `moonbitlang/async`. CI runs native tests and the complete file workflow on Linux, macOS and Windows. [Validation](docs/validation.md) explains exact coverage and independent fontTools comparisons.
 
+Batch defaults allow 64 MiB of retained font outputs, 32 MiB per font, and the usual 20-million operation budget per font phase. The total-byte budget excludes the small report and is not a peak-memory guarantee or shared CPU deadline. Library plan text is bounded to 65,536 UTF-16 code units. Filesystems must support same-filesystem no-replace directory renaming; unsupported systems fail explicitly. Atomic visibility does not promise power-loss durability.
+
 ## Development and direction
 
 ```sh
@@ -71,6 +91,6 @@ moon run checks/gate.mbtx -- js moon
 moon run checks/gate.mbtx -- native moon
 ```
 
-Outline, horizontal/vertical (including VVAR), MVAR global-metric, cvar control-value and multilingual-name instancing are implemented. Roboto Mono supplies real-font outline/HVAR evidence. Repository-authored probes supply MVAR/cvar, vertical-metric and language-metadata evidence. The intact upstream fontTools fixture is refused because its MVAR records are not in required tag order. Variable layout, partial instancing, CFF2 and subsetting remain future work; no compatibility claim is made for those inputs.
+Outline, horizontal/vertical (including VVAR), MVAR global-metric, cvar control-value and multilingual-name instancing are implemented, together with named-style selection and batch asset publication. Roboto Mono supplies real-font outline/HVAR, named-style and batch-workflow evidence. Repository-authored probes supply MVAR/cvar, vertical-metric and language-metadata evidence. The intact upstream fontTools fixture is refused because its MVAR records are not in required tag order. Variable layout, partial instancing, CFF2 and subsetting remain future work; no compatibility claim is made for those inputs.
 
 Font algorithms and new source files are MIT licensed; the adapted file-publication routine retains Apache-2.0. This is a complementary font transformation library, informed by the OpenType specification and checked against fontTools, rather than a port of a renderer or subsetter. See [design and use cases](docs/design.md), [sources and licenses](THIRD_PARTY.md), and [font corpus provenance](fixtures/README.md). Ecosystem uniqueness and performance advantages have not been established.

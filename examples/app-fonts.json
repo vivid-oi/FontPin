@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "outputs": [
+    { "file": "regular.ttf", "coordinates": { "wght": 400 } },
+    { "file": "semibold.ttf", "preset": 5 },
+    { "file": "bold.ttf", "preset": 6 }
+  ]
+}

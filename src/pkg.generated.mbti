@@ -21,11 +21,24 @@ pub struct Axis {
 } derive(ToJson)
 pub fn Axis::to_json(Self) -> Json
 
+pub struct BatchArtifact {
+  filename : String
+  instance : Instance
+}
+
+pub struct BatchPlan {
+  // private fields
+}
+pub fn BatchPlan::filenames(Self) -> Array[String]
+pub fn BatchPlan::parse(String) -> Self raise FontError
+pub fn BatchPlan::to_json(Self) -> Json
+
 pub struct Font {
   // private fields
 }
 pub fn Font::axes(Self) -> Array[Axis]
 pub fn Font::instantiate(Self, Map[String, Double], max_bytes? : Int32, work_limit? : Int32) -> Instance raise FontError
+pub fn Font::instantiate_batch(Self, BatchPlan, max_total_bytes? : Int32, max_bytes? : Int32, work_limit? : Int32) -> Array[BatchArtifact] raise FontError
 pub fn Font::instantiate_named(Self, Int32, max_bytes? : Int32, work_limit? : Int32) -> Instance raise FontError
 pub fn Font::named_instances(Self) -> Array[NamedInstance] raise FontError
 pub fn Font::parse(Bytes, max_bytes? : Int32) -> Self raise FontError

@@ -59,3 +59,25 @@ test "named selection propagates typed source errors" {
   )
 }
 ```
+
+Plans can be validated and stored without opening a font or touching files.
+The same canonical plan is usable by the portable API and the batch CLI.
+
+```mbt check
+///|
+test "a portable asset plan round trips before conversion" {
+  let plan = @fontpin.BatchPlan::parse(
+    "{\"version\":1,\"outputs\":[{\"file\":\"body.ttf\",\"coordinates\":{\"wght\":400}}]}",
+  )
+  assert_eq(plan.filenames(), ["body.ttf"])
+  let canonical = plan.to_json().stringify()
+  assert_eq(
+    @fontpin.BatchPlan::parse(canonical).to_json().stringify(),
+    canonical,
+  )
+}
+```
+
+Call `font.instantiate_batch(plan)` to get complete `BatchArtifact` values.
+Each artifact has a `filename` and an `instance`; publish the returned list only
+after the call succeeds. Coordinate and preset errors identify the output file.

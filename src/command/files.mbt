@@ -4,15 +4,22 @@
 
 ///|
 async fn read_font(path : String) -> Bytes {
+  read_limited_file(path, 32_000_000)
+}
+
+///|
+async fn read_limited_file(path : String, limit : Int32) -> Bytes {
   let file = @fs.open(path[:], mode=ReadOnly)
   defer file.close()
-  if file.kind() != Regular || file.size() > 32_000_000L {
-    fail("input must be a regular file of at most 32000000 bytes")
+  if file.kind() != Regular || file.size() > limit.to_int64() {
+    fail(
+      "input must be a regular file of at most " + limit.to_string() + " bytes",
+    )
   }
   let buffer = @buffer.Buffer()
   while file.read_some(max_len=65536) is Some(bytes) {
-    if bytes.length() > 32_000_000 - buffer.length() {
-      fail("input grew past the 32000000-byte limit")
+    if bytes.length() > limit - buffer.length() {
+      fail("input grew past the " + limit.to_string() + "-byte limit")
     }
     buffer.write_bytes(bytes[:])
   }

@@ -1,0 +1,93 @@
+----
+import {
+  "moonbitlang/async@0.22.5",
+  "moonbitlang/async@0.22.5/shell",
+  "moonbitlang/async@0.22.5/fs",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+}
+----
+
+async fn cleanup_owned(root : String, path : String) -> Unit {
+  let resolved = @fs.realpath(path[:]).replace_all(old="\\", new="/")
+  if resolved != root && !resolved.has_prefix(root + "/") { fail("cleanup path escapes owned temporary directory") }
+  if @fs.kind(path[:], follow_symlink=false) is Directory {
+    for name in @fs.readdir(path[:]) { cleanup_owned(root, path + "/" + name) }
+    @fs.rmdir(path[:])
+  } else { @fs.remove(path[:]) }
+}
+
+async fn main {
+  let args = @env.args()
+  let target = if args.length() > 1 { args[1] } else { "wasm" }
+  let moon = if args.length() > 2 { args[2] } else { "moon" }
+  let directory = @fs.tmpdir(prefix="fontpin-batch-")
+  let owned_root = @fs.realpath(directory[:]).replace_all(old="\\", new="/")
+  defer cleanup_owned(owned_root, directory)
+  let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
+  let source = "fixtures/robotomono/RobotoMono.ttf"
+  let original = @fs.read_file(source).binary()
+  let plan = directory + "/plan.json"
+  @fs.write_file(plan[:], @fs.read_file("examples/app-fonts.json").text())
+  let destination = directory + "/bundle"
+  let first = @shell.Cmd(moon, prefix + ["batch", source, destination, plan]).output()
+  first.check()
+  let report = @json.parse(first.stdout())
+  guard report is { "version": Number(1, ..), "outputs": Array(outputs), .. } else { fail("batch report is incomplete") }
+  if outputs.length() != 3 { fail("batch did not publish all requested fonts") }
+  let files = @fs.readdir(destination[:])
+  files.sort_by((a, b) => a.lexical_compare(b))
+  if files != ["bold.ttf", "manifest.json", "regular.ttf", "semibold.ttf"] { fail("batch directory has missing or unexpected files") }
+  if @fs.read_file((destination + "/manifest.json")[:]).text() != first.stdout() { fail("persisted manifest differs from the reported result") }
+  for (filename, weight) in [("regular.ttf", 400), ("semibold.ttf", 600), ("bold.ttf", 700)] {
+    let output = destination + "/" + filename
+    let expected = directory + "/single-" + filename
+    @shell.Cmd(moon, prefix + ["instance", source, expected, "wght=" + weight.to_string()]).run()
+    if @fs.read_file(output[:]).binary() != @fs.read_file(expected[:]).binary() { fail("batch font differs from single-font conversion") }
+    @shell.Cmd(moon, prefix + ["inspect", output]).run()
+  }
+  let repeated = directory + "/repeated"
+  let second = @shell.Cmd(moon, prefix + ["batch", source, repeated, plan]).output()
+  second.check()
+  if second.stdout() != first.stdout() { fail("identical batch manifests produced different reports") }
+  for filename in files {
+    if @fs.read_file((destination + "/" + filename)[:]).binary() != @fs.read_file((repeated + "/" + filename)[:]).binary() { fail("repeated batch changed artifact bytes") }
+  }
+  let bad_plan = directory + "/bad.json"
+  let absent = directory + "/recovered"
+  for text in [
+    "{\"version\":1,\"outputs\":[{\"file\":\"a.ttf\",\"coordinates\":{}},{\"file\":\"z.ttf\",\"coordinates\":{\"zzzz\":1}}]}",
+    "{\"version\":1,\"outputs\":[{\"file\":\"a.ttf\",\"preset\":7}]}",
+    "{\"version\":1,\"outputs\":[{\"file\":\"../escape.ttf\",\"preset\":0}]}",
+    "{\"version\":1,\"outputs\":[{\"file\":\"a.ttf\",\"file\":\"b.ttf\",\"preset\":0}]}"
+  ] {
+    @fs.write_file(bad_plan[:], text)
+    let refusal = @shell.Cmd(moon, prefix + ["batch", source, absent, bad_plan]).output()
+    if refusal.exit_code() == 0 || @fs.exists(absent[:]) || refusal.stderr().is_empty() { fail("invalid plan published a partial bundle") }
+  }
+  @fs.write_file(bad_plan[:], b"\xff")
+  if @shell.Cmd(moon, prefix + ["batch", source, absent, bad_plan]).output().exit_code() == 0 || @fs.exists(absent[:]) { fail("invalid UTF-8 published a bundle") }
+  let oversized = StringBuilder()
+  for _ in 0..<65537 { oversized.write_char(' ') }
+  @fs.write_file(bad_plan[:], oversized.to_string())
+  let too_large = @shell.Cmd(moon, prefix + ["batch", source, absent, bad_plan]).output()
+  if too_large.exit_code() == 0 || !too_large.stderr().contains("65536") || @fs.exists(absent[:]) { fail("oversized plan was not refused") }
+  let existing = directory + "/existing"
+  @fs.mkdir(existing[:])
+  @fs.write_file((existing + "/sentinel.txt")[:], "keep")
+  if @shell.Cmd(moon, prefix + ["batch", source, existing, plan]).output().exit_code() == 0 || @fs.readdir(existing[:]) != ["sentinel.txt"] || @fs.read_file((existing + "/sentinel.txt")[:]).text() != "keep" { fail("batch replaced an existing directory") }
+  let empty = directory + "/empty"
+  @fs.mkdir(empty[:])
+  if @shell.Cmd(moon, prefix + ["batch", source, empty, plan]).output().exit_code() == 0 || !@fs.readdir(empty[:]).is_empty() { fail("batch replaced an existing empty directory") }
+  let existing_file = directory + "/existing-file"
+  @fs.write_file(existing_file[:], "keep")
+  if @shell.Cmd(moon, prefix + ["batch", source, existing_file, plan]).output().exit_code() == 0 || @fs.read_file(existing_file[:]).text() != "keep" { fail("batch replaced an existing file") }
+  let impossible = directory + "/missing/child"
+  if @shell.Cmd(moon, prefix + ["batch", source, impossible, plan]).output().exit_code() == 0 || @fs.exists((directory + "/missing")[:]) { fail("batch created an unexpected destination parent") }
+  let trailing = directory + "/trailing/"
+  if @shell.Cmd(moon, prefix + ["batch", source, trailing, plan]).output().exit_code() == 0 || @fs.exists((directory + "/trailing")[:]) { fail("batch accepted an ambiguous trailing-separator destination") }
+  for name in @fs.readdir(directory[:]) { if name.has_suffix(".pending") { fail("failed batch publication left a staging directory") } }
+  @shell.Cmd(moon, prefix + ["batch", source, absent, plan]).run()
+  if @fs.read_file(source).binary() != original { fail("batch changed its source font") }
+  println("Batch workflow: three real fonts, exact single-conversion equivalence, deterministic bundle/report, all-or-nothing publication, no-clobber and recovery passed")
+}
