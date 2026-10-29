@@ -1,0 +1,26 @@
+----
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/shell",
+  "moonbitlang/core/env",
+}
+----
+
+async fn main {
+  let args = @env.args()
+  let target = if args.length() > 1 { args[1] } else { "wasm-gc" }
+  let moon = if args.length() > 2 { args[2] } else { "moon" }
+  if !["wasm", "wasm-gc", "js", "native"].contains(target) {
+    fail("target must be wasm, wasm-gc, js, or native")
+  }
+  @shell.Cmd(moon, ["fmt", "--check"]).run()
+  @shell.Cmd(moon, ["fmt", "--check", "checks/gate.mbtx", "checks/workflow.mbtx", "checks/oracle.mbtx"]).run()
+  @shell.Cmd(moon, ["info", "--target", target]).run()
+  @shell.Cmd("git", ["diff", "--exit-code", "--", "*.mbti"]).run()
+  @shell.Cmd(moon, ["check", "--frozen", "--target", target, "--deny-warn"]).run()
+  @shell.Cmd(moon, ["build", "--frozen", "--target", target, "--deny-warn"]).run()
+  @shell.Cmd(moon, ["test", "--frozen", "--target", target, "--deny-warn"]).run()
+  if target == "wasm" || target == "native" {
+    @shell.Cmd(moon, ["run", "--frozen", "checks/workflow.mbtx", "--", target, moon]).run()
+  }
+}

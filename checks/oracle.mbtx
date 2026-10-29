@@ -1,0 +1,143 @@
+----
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/shell",
+  "moonbitlang/async/fs",
+  "moonbitlang/core/env",
+  "moonbitlang/core/buffer",
+}
+----
+
+async fn read_bytes(path : String) -> Bytes {
+  let file = @fs.open(path[:], mode=ReadOnly)
+  defer file.close()
+  let buffer = @buffer.Buffer()
+  while file.read_some(max_len=65536) is Some(bytes) {
+    if buffer.length() + bytes.length() > 16_000_000 { fail("verification input exceeds 16 MB") }
+    buffer.write_bytes(bytes[:])
+  }
+  buffer.to_bytes()
+}
+
+fn u16(data : Bytes, pos : Int) -> Int raise {
+  if pos < 0 || pos + 2 > data.length() { fail("truncated independent sfnt check") }
+  (data[pos].to_int() << 8) | data[pos + 1].to_int()
+}
+
+fn u32(data : Bytes, pos : Int) -> UInt raise {
+  if pos < 0 || pos + 4 > data.length() { fail("truncated independent sfnt check") }
+  (data[pos].to_uint() << 24) | (data[pos + 1].to_uint() << 16) |
+  (data[pos + 2].to_uint() << 8) | data[pos + 3].to_uint()
+}
+
+fn checksum(data : Bytes, clear_adjustment : Bool) -> UInt {
+  let mut total = 0U
+  for offset = 0; offset < data.length(); offset = offset + 4 {
+    let mut word = 0U
+    for j in 0..<4 {
+      let i = offset + j
+      let byte = if i < data.length() && !(clear_adjustment && i >= 8 && i < 12) {
+        data[i].to_uint()
+      } else { 0U }
+      word = (word << 8) | byte
+    }
+    total += word
+  }
+  total
+}
+
+fn check_sfnt(data : Bytes) -> Unit raise {
+  if u32(data, 0) != 0x00010000U { fail("output is not a TrueType sfnt") }
+  if checksum(data, false) != 0xB1B0AFBAU { fail("whole-font checksum mismatch") }
+  let count = u16(data, 4)
+  if count == 0 || count > 256 || 12 + count * 16 > data.length() {
+    fail("invalid output table directory")
+  }
+  let mut prior = 0U
+  let mut saw_glyf = false
+  for i in 0..<count {
+    let pos = 12 + i * 16
+    let tag = u32(data, pos)
+    if i > 0 && tag <= prior { fail("duplicate or unsorted output tables") }
+    prior = tag
+    if [0x66766172U, 0x67766172U, 0x61766172U, 0x48564152U, 0x4D564152U, 0x63766172U].contains(tag) {
+      fail("output retained a variation table")
+    }
+    let off = u32(data, pos + 8)
+    let size = u32(data, pos + 12)
+    if off > data.length().reinterpret_as_uint() || size > data.length().reinterpret_as_uint() - off || (off & 3U) != 0U {
+      fail("output table points outside font or is unaligned")
+    }
+    let expected = u32(data, pos + 4)
+    if checksum(data[off.reinterpret_as_int():off.reinterpret_as_int() + size.reinterpret_as_int()].to_owned(), tag == 0x68656164U) != expected {
+      fail("output table checksum mismatch")
+    }
+    if tag == 0x676C7966U { saw_glyf = true }
+  }
+  if !saw_glyf { fail("output lost TrueType outlines") }
+}
+
+fn surface(xml : String) -> Map[String, Array[String]] {
+  let result : Map[String, Array[String]] = Map([])
+  let mut active = ""
+  for part in xml.split("\n") {
+    let line = part.trim().to_owned()
+    if ["<GlyphOrder>", "<glyf>", "<hmtx>", "<cmap>"].contains(line) {
+      active = line
+      result[active] = []
+    }
+    if active != "" && line != "" && !line.has_prefix("<!--") {
+      result[active].push(line)
+    }
+    if ["</GlyphOrder>", "</glyf>", "</hmtx>", "</cmap>"].contains(line) { active = "" }
+  }
+  result
+}
+
+async fn main {
+  let args = @env.args()
+  let target = if args.length() > 1 { args[1] } else { "wasm" }
+  let moon = if args.length() > 2 { args[2] } else { "moon" }
+  let python = if args.length() > 3 { args[3] } else { "python" }
+  let directory = @fs.tmpdir(prefix="fontpin-oracle-")
+  defer {
+    for name in @fs.readdir(directory[:]) { @fs.remove((directory + "/" + name)[:]) }
+    @fs.rmdir(directory[:])
+  }
+  let source = "fixtures/robotomono/RobotoMono.ttf"
+  let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
+  let mut previous : Map[String, Array[String]]? = None
+  for weight in [100, 400, 650, 700] {
+    let coordinate = "wght=" + weight.to_string()
+    let actual = directory + "/actual-" + weight.to_string() + ".ttf"
+    let expected = directory + "/expected-" + weight.to_string() + ".ttf"
+    @shell.Cmd(moon, prefix + ["instance", source, actual, coordinate]).run()
+    @shell.Cmd(python, ["-m", "fontTools.varLib.instancer", source, coordinate, "--static", "--no-recalc-timestamp", "-o", expected]).run()
+    check_sfnt(read_bytes(actual))
+    let actual_xml = directory + "/actual-" + weight.to_string() + ".ttx"
+    let expected_xml = directory + "/expected-" + weight.to_string() + ".ttx"
+    let ttx = ["-m", "fontTools.ttx", "-q", "-t", "GlyphOrder", "-t", "glyf", "-t", "hmtx", "-t", "cmap", "-o"]
+    @shell.Cmd(python, ttx + [actual_xml, actual]).run()
+    @shell.Cmd(python, ttx + [expected_xml, expected]).run()
+    let observed = surface(@fs.read_file(actual_xml[:]).text())
+    let reference = surface(@fs.read_file(expected_xml[:]).text())
+    if observed.length() != 4 || reference.length() != 4 { fail("incomplete oracle XML") }
+    for section, lines in reference {
+      guard observed.get(section) is Some(other) else { fail("missing section " + section) }
+      if lines != other {
+        let length = if lines.length() < other.length() { lines.length() } else { other.length() }
+        for i in 0..<length {
+          if lines[i] != other[i] {
+            fail(coordinate + " " + section + " mismatch at line " + i.to_string() + ": expected " + lines[i] + "; observed " + other[i])
+          }
+        }
+        fail(coordinate + " " + section + " line count differs")
+      }
+    }
+    if previous is Some(before) && before.get("<glyf>") == observed.get("<glyf>") {
+      fail("different weights produced identical glyph geometry")
+    }
+    previous = Some(observed)
+    println("fontTools differential passed for " + coordinate + ": all glyphs, components, cmap and horizontal metrics")
+  }
+}

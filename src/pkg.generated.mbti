@@ -1,0 +1,39 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "vivid-oi/fontpin"
+
+// Values
+pub fn inspect_font(Bytes, max_bytes? : Int32) -> Json raise FontError
+
+// Errors
+pub(all) suberror FontError {
+  Invalid(String)
+  Unsupported(String)
+  Limit(String)
+}
+pub fn FontError::message(Self) -> String
+
+// Types and methods
+pub struct Axis {
+  tag : String
+  minimum : Double
+  default : Double
+  maximum : Double
+} derive(ToJson)
+pub fn Axis::to_json(Self) -> Json
+
+pub struct Font {
+  // private fields
+}
+pub fn Font::axes(Self) -> Array[Axis]
+pub fn Font::instantiate(Self, Map[String, Double], max_bytes? : Int32, work_limit? : Int32) -> Instance raise FontError
+pub fn Font::parse(Bytes, max_bytes? : Int32) -> Self raise FontError
+
+pub struct Instance {
+  // private fields
+}
+pub fn Instance::report_json(Self) -> Json
+pub fn Instance::to_bytes(Self) -> Bytes
+
+// Type aliases
+
+// Traits

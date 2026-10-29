@@ -1,0 +1,91 @@
+----
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/shell",
+  "moonbitlang/async/fs",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "moonbitlang/core/buffer",
+}
+----
+
+async fn read_bytes(path : String) -> Bytes {
+  let file = @fs.open(path[:], mode=ReadOnly)
+  defer file.close()
+  let buffer = @buffer.Buffer()
+  while file.read_some(max_len=65536) is Some(bytes) {
+    if buffer.length() + bytes.length() > 16_000_000 { fail("verification input exceeds 16 MB") }
+    buffer.write_bytes(bytes[:])
+  }
+  buffer.to_bytes()
+}
+
+async fn main {
+  let args = @env.args()
+  let target = if args.length() > 1 { args[1] } else { "wasm" }
+  let moon = if args.length() > 2 { args[2] } else { "moon" }
+  let directory = @fs.tmpdir(prefix="fontpin-workflow-")
+  defer {
+    for name in @fs.readdir(directory[:]) {
+      @fs.remove((directory + "/" + name)[:])
+    }
+    @fs.rmdir(directory[:])
+  }
+  let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
+  let source = "fixtures/robotomono/RobotoMono.ttf"
+  let original = read_bytes(source)
+  let output = directory + "/RobotoMono650.ttf"
+  let first = @shell.Cmd(moon, prefix + ["instance", source, output, "wght=650"]).output()
+  if first.exit_code() != 0 { fail("initial conversion failed: " + first.stderr()) }
+  let _ = @json.parse(first.stdout())
+  let instance = read_bytes(output)
+  if instance.length() < 1000 || instance == original {
+    fail("conversion did not produce a distinct font")
+  }
+  let inspection = @shell.Cmd(moon, prefix + ["inspect", output]).output()
+  if inspection.exit_code() != 0 { fail("output inspection failed: " + inspection.stderr()) }
+  match @json.parse(inspection.stdout()) {
+    { "axes": Array(axes), .. } => if axes.length() != 0 {
+      fail("reloaded output retained variable axes")
+    }
+    _ => fail("inspection omitted the axes report")
+  }
+  let duplicate = @shell.Cmd(moon, prefix + ["instance", source, output, "wght=650"]).output()
+  if duplicate.exit_code() == 0 || read_bytes(output) != instance {
+    fail("an existing output was overwritten")
+  }
+  let same_path = @shell.Cmd(moon, prefix + ["instance", source, source, "wght=650"]).output()
+  if same_path.exit_code() == 0 || read_bytes(source) != original {
+    fail("the input was overwritten when also used as output")
+  }
+  let repeat = directory + "/repeat.ttf"
+  @shell.Cmd(moon, prefix + ["instance", source, repeat, "wght=650"]).run()
+  if read_bytes(repeat) != instance {
+    fail("identical conversions produced different bytes")
+  }
+  let absent = directory + "/absent.ttf"
+  for coordinates in [["wght=701"], ["wght=99"], ["zzzz=400"], ["wght=not-a-number"], ["wght=NaN"], ["wght=Infinity"], ["wght=300", "wght=500"]] {
+    let rejected = @shell.Cmd(moon, prefix + ["instance", source, absent] + coordinates).output()
+    if rejected.exit_code() == 0 || @fs.exists(absent[:]) || rejected.stderr().is_empty() {
+      fail("invalid axis input was accepted or published output: " + coordinates.join(", "))
+    }
+  }
+  let unsupported = @shell.Cmd(moon, prefix + ["instance", "fixtures/robotoslab/RobotoSlab.ttf", absent, "wght=650"]).output()
+  if unsupported.exit_code() == 0 || @fs.exists(absent[:]) || !unsupported.stderr().contains("GDEF") {
+    fail("variable positioning was accepted or refused without a GDEF diagnostic")
+  }
+  let malformed = directory + "/truncated.ttf"
+  @fs.write_file(malformed[:], b"\x00\x01\x00\x00")
+  let corrupt = @shell.Cmd(moon, prefix + ["instance", malformed, absent, "wght=650"]).output()
+  if corrupt.exit_code() == 0 || @fs.exists(absent[:]) {
+    fail("truncated font was accepted or partially published")
+  }
+  @shell.Cmd(moon, prefix + ["instance", source, absent, "wght=100"]).run()
+  if read_bytes(source) != original {
+    fail("the original font was modified")
+  }
+  for name in @fs.readdir(directory[:]) {
+    if name.has_suffix(".pending") { fail("failed publication left a temporary file") }
+  }
+  println("Font workflow: real conversion, static reload, deterministic bytes, no-clobber, malformed/unsupported input and recovery passed")
+}
