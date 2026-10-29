@@ -99,6 +99,7 @@ async fn main {
   let target = if args.length() > 1 { args[1] } else { "wasm" }
   let moon = if args.length() > 2 { args[2] } else { "moon" }
   let python = if args.length() > 3 { args[3] } else { "python" }
+  @shell.Cmd(moon, ["build", "--target", target, "--deny-warn"]).run()
   let directory = @fs.tmpdir(prefix="fontpin-oracle-")
   defer {
     for name in @fs.readdir(directory[:]) { @fs.remove((directory + "/" + name)[:]) }

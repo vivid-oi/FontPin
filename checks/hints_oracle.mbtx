@@ -1,0 +1,163 @@
+----
+import {
+  "moonbitlang/async@0.22.5",
+  "moonbitlang/async@0.22.5/shell",
+  "moonbitlang/async@0.22.5/fs",
+  "moonbitlang/core/env",
+  "moonbitlang/core/buffer",
+}
+----
+
+async fn read_bytes(path : String) -> Bytes {
+  let file = @fs.open(path[:], mode=ReadOnly)
+  defer file.close()
+  let buffer = @buffer.Buffer()
+  while file.read_some(max_len=65536) is Some(bytes) {
+    if buffer.length() + bytes.length() > 16_000_000 { fail("oracle input exceeds 16 MB") }
+    buffer.write_bytes(bytes[:])
+  }
+  buffer.to_bytes()
+}
+
+fn surface(xml : String) -> Map[String, Array[String]] {
+  let result : Map[String, Array[String]] = Map([])
+  let mut active = ""
+  for part in xml.split("\n") {
+    let line = part.trim().to_owned()
+    if ["<OS_2>", "<hhea>", "<post>", "<glyf>", "<hmtx>", "<cvt>", "<fpgm>", "<prep>"].contains(line) {
+      active = line
+      result[active] = []
+    }
+    if active != "" && line != "" && !line.has_prefix("<!--") && !line.has_prefix("<numberOfHMetrics ") && !line.has_prefix("<fsSelection ") {
+      result[active].push(line)
+    }
+    if ["</OS_2>", "</hhea>", "</post>", "</glyf>", "</hmtx>", "</cvt>", "</fpgm>", "</prep>"].contains(line) { active = "" }
+  }
+  result
+}
+
+fn fs_selection(xml : String) -> Int raise {
+  for part in xml.split("\n") {
+    let line = part.trim()
+    if line.has_prefix("<fsSelection ") {
+      let parts = line.split("\"").to_array()
+      if parts.length() != 3 { fail("invalid fsSelection XML") }
+      let mut result = 0
+      let mut count = 0
+      for char in parts[1] {
+        match char {
+          '0' => { result = result << 1; count += 1 }
+          '1' => { result = (result << 1) | 1; count += 1 }
+          ' ' => ()
+          _ => fail("invalid fsSelection bit")
+        }
+      }
+      if count != 16 { fail("fsSelection is not 16 bits") }
+      return result
+    }
+  }
+  fail("missing fsSelection field")
+}
+
+fn programs(xml : String) -> Map[String, Array[String]] {
+  let result : Map[String, Array[String]] = Map([])
+  let mut glyph = ""
+  let mut active = ""
+  for part in xml.split("\n") {
+    let line = part.trim().to_owned()
+    if line.has_prefix("<TTGlyph ") {
+      let parts = line.split("\"").to_array()
+      if parts.length() > 1 { glyph = parts[1].to_owned() }
+    }
+    if line == "<fpgm>" || line == "<prep>" {
+      active = line
+      result[active] = []
+    } else if line == "<instructions>" {
+      active = "glyph:" + glyph
+      result[active] = []
+    }
+    if active != "" && line != "" { result[active].push(line) }
+    if ["</fpgm>", "</prep>", "</instructions>"].contains(line) { active = "" }
+  }
+  result
+}
+
+async fn main {
+  let args = @env.args()
+  let target = if args.length() > 1 { args[1] } else { "wasm" }
+  let moon = if args.length() > 2 { args[2] } else { "moon" }
+  let python = if args.length() > 3 { args[3] } else { "python" }
+  @shell.Cmd(moon, ["build", "--target", target, "--deny-warn"]).run()
+  let directory = @fs.tmpdir(prefix="fontpin-hints-")
+  defer {
+    for name in @fs.readdir(directory[:]) { @fs.remove((directory + "/" + name)[:]) }
+    @fs.rmdir(directory[:])
+  }
+  let source = directory + "/CVTProbe.ttf"
+  @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "-o", source, "fixtures/hints/CVTProbe.ttx"]).run()
+  let source_xml = directory + "/source.ttx"
+  let dump = ["-m", "fontTools.ttx", "-q", "-e", "-i", "-t", "OS/2", "-t", "hhea", "-t", "post", "-t", "glyf", "-t", "hmtx", "-t", "cvt", "-t", "fpgm", "-t", "prep", "-o"]
+  @shell.Cmd(python, dump + [source_xml, source]).run()
+  let original_programs = programs(@fs.read_file(source_xml[:]).text())
+  if original_programs.length() != 3 { fail("probe must contain nonempty global, prep and glyph programs") }
+  let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
+  let cases = [
+    (400, 100.0, [512, -300, 96, 240]),
+    (100, 75.0, [512, -300, 80, 180]),
+    (650, 87.5, [536, -300, 96, 210]),
+    (900, 125.0, [536, -340, 96, 240]),
+    (900, 75.0, [552, -300, 96, 180]),
+  ]
+  for index, case in cases {
+    let (weight, width, expected_cvt) = case
+    let coordinates = ["wdth=" + width.to_string(), "wght=" + weight.to_string()]
+    let actual = directory + "/actual-" + index.to_string() + ".ttf"
+    let expected = directory + "/expected-" + index.to_string() + ".ttf"
+    // CLI coordinate order deliberately differs from fvar's axis order.
+    @shell.Cmd(moon, prefix + ["instance", source, actual] + coordinates).run()
+    @shell.Cmd(python, ["-m", "fontTools.varLib.instancer", source] + coordinates + ["--static", "--no-recalc-timestamp", "-o", expected]).run()
+    let actual_xml = directory + "/actual-" + index.to_string() + ".ttx"
+    let expected_xml = directory + "/expected-" + index.to_string() + ".ttx"
+    @shell.Cmd(python, dump + [actual_xml, actual]).run()
+    @shell.Cmd(python, dump + [expected_xml, expected]).run()
+    let observed_xml = @fs.read_file(actual_xml[:]).text()
+    let reference_xml = @fs.read_file(expected_xml[:]).text()
+    let observed = surface(observed_xml)
+    let reference = surface(reference_xml)
+    if observed.length() != 8 || reference.length() != 8 { fail("incomplete cvar oracle XML") }
+    let observed_flags = fs_selection(observed_xml)
+    if (observed_flags & 0x61) != (if weight >= 700 { 0x20 } else { 0x40 }) || (observed_flags & 0xFF9E) != (fs_selection(reference_xml) & 0xFF9E) {
+      fail("fsSelection differs outside FontPin's explicit style policy")
+    }
+    for section, lines in reference {
+      guard observed.get(section) is Some(other) else { fail("missing section " + section) }
+      if lines != other {
+        let length = if lines.length() < other.length() { lines.length() } else { other.length() }
+        for i in 0..<length {
+          if lines[i] != other[i] {
+            fail(coordinates.join(",") + " " + section + " mismatch at line " + i.to_string() + ": expected " + lines[i] + "; observed " + other[i])
+          }
+        }
+        fail(coordinates.join(",") + " " + section + " line count differs")
+      }
+    }
+    if programs(observed_xml) != original_programs { fail("hint bytecode changed during instancing") }
+    guard observed.get("<cvt>") is Some(cvt) else { fail("missing cvt values") }
+    for cv_index, value in expected_cvt {
+      let line = "<cv index=\"" + cv_index.to_string() + "\" value=\"" + value.to_string() + "\"/>"
+      if !cvt.contains(line) { fail("incorrect independent CVT value: " + line) }
+    }
+    let reordered = directory + "/reordered-" + index.to_string() + ".ttf"
+    @shell.Cmd(moon, prefix + ["instance", source, reordered, coordinates[1], coordinates[0]]).run()
+    if read_bytes(reordered) != read_bytes(actual) { fail("axis argument order changed output bytes") }
+    println("CVTProbe differential passed: " + coordinates.join(",") + "; exact hint bytecode and concrete CVT values preserved")
+  }
+  let unsupported_source = directory + "/PartialInstancerTest-VF.ttf"
+  @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "-o", unsupported_source, "fixtures/instancer/PartialInstancerTest-VF.ttx"]).run()
+  let absent = directory + "/unsupported.ttf"
+  let refusal = @shell.Cmd(moon, prefix + ["instance", unsupported_source, absent, "wght=650", "wdth=85"]).output()
+  if refusal.exit_code() == 0 || @fs.exists(absent[:]) || !["vhea", "vmtx", "ltag"].any(tag => refusal.stderr().contains(tag)) {
+    fail("complete upstream reference with unsupported tables was not safely refused")
+  }
+  println("Unmodified upstream reference safely refused: vertical metrics/language extensions remain unsupported")
+}

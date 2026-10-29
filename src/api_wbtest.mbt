@@ -259,3 +259,38 @@ test "MVAR overflow refuses one position and the font remains reusable" {
   assert_true(rejected)
   assert_eq(font.instantiate({ "wght": 400.0 }).to_bytes(), original)
 }
+
+///|
+test "full cvar workflow freezes CVT and removes variation metadata" {
+  let tables = api_fixture_tables()
+  tables["cvt "] = b"\x00\x64\x00\xc8\xff\x9c"
+  tables["cvar"] = metric_test_cvar(true)
+  let source = build_sfnt(tables, 100000)
+  let font = Font::parse(source)
+  let output = font.instantiate({ "wght": 700.0 }).to_bytes()
+  let result = parse_sfnt(output, 100000)
+  assert_false(result.contains("cvar"))
+  assert_eq(result["cvt "], b"\x00\x78\x00\xc8\xff\x92")
+  let default_result = parse_sfnt(font.instantiate({}).to_bytes(), 100000)
+  assert_eq(default_result["cvt "], tables["cvt "])
+  assert_eq(parse_sfnt(source, 100000)["cvt "], tables["cvt "])
+  assert_eq(font.instantiate({ "wght": 700.0 }).to_bytes(), output)
+}
+
+///|
+test "cvar overflow is atomic and another valid position still converts" {
+  let tables = api_fixture_tables()
+  tables["cvt "] = b"\x7f\xff\x00\xc8\xff\x9c"
+  tables["cvar"] = metric_test_cvar(true)
+  let font = Font::parse(build_sfnt(tables, 100000))
+  let original = font.instantiate({}).to_bytes()
+  let rejected = try {
+    ignore(font.instantiate({ "wght": 700.0 }))
+    false
+  } catch {
+    Invalid(detail) => detail.contains("cvar")
+    _ => false
+  }
+  assert_true(rejected)
+  assert_eq(font.instantiate({}).to_bytes(), original)
+}

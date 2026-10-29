@@ -15,7 +15,7 @@ moon run --target wasm src/command -- instance fixtures/robotomono/RobotoMono.tt
 moon run --target wasm src/command -- inspect RobotoMono650.ttf
 ```
 
-The example uses the unmodified, licensed Roboto Mono variable font. The output has 1,006 glyphs and no `fvar`, `avar`, `gvar` or `HVAR`. Omitted axes use their defaults. Coordinates must be finite, known and in range. Output paths must be new; conversion completes before a temporary file is synced and renamed without replacement. Failure returns a nonzero status and a diagnostic on stderr. Success writes JSON on stdout.
+The example uses the unmodified, licensed Roboto Mono variable font. The output has 1,006 glyphs and no variable outline/metric tables (`fvar`, `avar`, `gvar`, `HVAR`, `MVAR`, `cvar`). Omitted axes use their defaults. Coordinates must be finite, known and in range. Output paths must be new; conversion completes before a temporary file is synced and renamed without replacement. Failure returns a nonzero status and a diagnostic on stderr. Success writes JSON on stdout.
 
 ## Library
 
@@ -29,18 +29,19 @@ let output_bytes = instance.to_bytes()
 let report = instance.report_json()
 ```
 
-`Font::parse` checks the sfnt container and reads axes; `instantiate` checks whether every table can safely participate in conversion. `inspect_font` accepts static and variable TTF files. Errors distinguish `Invalid`, `Unsupported` and `Limit`; `message()` provides an explanation. [Generated API](src/pkg.generated.mbti) lists the complete public surface.
+`Font::parse` checks the sfnt container and reads axes; `instantiate` checks whether every table can safely participate in conversion. `inspect_font` accepts static and variable TTF files. Errors distinguish `Invalid`, `Unsupported` and `Limit`; `message()` provides an explanation. [Generated API](src/pkg.generated.mbti) lists the complete public surface; the [checked embedding example](src/README.mbt.md) is compiled with the tests.
 
 ## Implemented scope
 
 - Single TrueType sfnt fonts: `fvar`, `avar` 1.0, `gvar` tuple/point/delta decoding, IUP interpolation, simple outlines and XY-positioned composite glyphs, and phantom-point metrics.
 - HVAR item variation stores and advance/left-side-bearing maps. Metrics use the original values to avoid applying the same advance variation twice.
 - MVAR global metrics: line, cap/x-height, sub/superscript, strike/underline and horizontal caret metrics, plus validated gasp thresholds. Originally identical OS/2 and hhea line metrics stay synchronized; intentionally different line metrics remain different.
+- cvar control-value freezing: interpolate CVT deltas at the pinned position, round once after accumulation and retain hint programs. Shared/private sparse CVT references and repeated references are handled without glyph IUP interpolation.
 - Rebuilt `glyf`, long `loca`, `hmtx`, bounding boxes and horizontal summary metrics; updated OS/2 average width, weight/width/style flags, `post` slant and instance names. Copyright, family and license names are retained.
 - STAT 1.0–1.2 value filtering, including preservation of static axes absent from `fvar`; preserved static layout tables; sorted output, checked offsets, table checksums and whole-font checksum.
 - Bounded input/output sizes, axis/table counts, glyph and variation work. Limits are operation budgets, not a runtime deadline. Defaults: library 32 MiB, CLI 32,000,000 bytes, work 20 million.
 
-This version deliberately rejects CFF/CFF2, WOFF/WOFF2, collections, partial axis pinning, avar 2, cvar/VVAR and vertical-metric tables, point-matched composites, HVAR right-side-bearing maps, variable GDEF/GPOS/GSUB layout, signatures and unknown tables. Unsupported data is never silently discarded. Axis-dependent TrueType hint instructions are refused; retained instructions are not executed or certified by FontPin. Container validation is not a complete font sanitizer.
+This version deliberately rejects CFF/CFF2, WOFF/WOFF2, collections, partial axis pinning, avar 2, VVAR and vertical-metric tables, point-matched composites, HVAR right-side-bearing maps, variable GDEF/GPOS/GSUB layout, signatures and unknown tables. Unsupported data is never silently discarded. Axis-dependent TrueType hint instructions (`GETVARIATION`/`GETDATA`) are refused; retained instructions are not executed or certified by FontPin. Container validation is not a complete font sanitizer.
 
 Style flags use weight class ≥700 for bold, `ital` ≥0.5 for italic or nonzero `slnt` when no italic axis exists. Regular is set only when neither applies. This explicit policy can differ from fontTools retaining source style flags.
 
@@ -55,6 +56,6 @@ moon run checks/gate.mbtx -- js moon
 moon run checks/gate.mbtx -- native moon
 ```
 
-Outline, horizontal and MVAR global-metric instancing are implemented. Next is cvar control-value freezing with an upstream synthetic reference font. Variable layout, partial instancing, CFF2 and subsetting remain separate future work; no compatibility claim is made for those inputs.
+Outline, horizontal, MVAR global-metric and cvar control-value instancing are implemented. Roboto Mono supplies real-font outline/HVAR evidence; repository-authored synthetic fonts supply MVAR/cvar evidence. The unmodified upstream fontTools fixture contains unsupported vertical tables and serves as a rejection test. Variable layout, vertical metrics, partial instancing, CFF2 and subsetting remain future work; no compatibility claim is made for those inputs.
 
 Font algorithms and new source files are MIT licensed; the adapted file-publication routine retains Apache-2.0. This is a complementary font transformation library, informed by the OpenType specification and checked against fontTools, rather than a port of a renderer or subsetter. See [design and use cases](docs/design.md), [sources and licenses](THIRD_PARTY.md), and [font corpus provenance](fixtures/README.md). Ecosystem uniqueness and performance advantages have not been established.

@@ -33,7 +33,7 @@ fn preflight(tables : Map[String, Bytes]) -> Unit raise FontError {
   let allowed = [
     "head", "hhea", "maxp", "OS/2", "hmtx", "cmap", "loca", "glyf", "name", "post",
     "gasp", "cvt ", "fpgm", "prep", "kern", "GSUB", "GPOS", "GDEF", "STAT", "fvar",
-    "avar", "gvar", "HVAR", "MVAR",
+    "avar", "gvar", "HVAR", "MVAR", "cvar",
   ]
   for tag, _ in tables {
     if !allowed.contains(tag) {
@@ -152,8 +152,9 @@ pub fn Font::instantiate(
   tables["OS/2"] = Bytes::from_array(os2[:])
   update_instance_names(tables, actual)
   apply_mvar(tables, coords, work_limit~)
+  apply_cvar(tables, coords, work_limit~)
   update_stat(tables, actual)
-  for tag in ["fvar", "avar", "gvar", "HVAR", "MVAR"] {
+  for tag in ["fvar", "avar", "gvar", "HVAR", "MVAR", "cvar"] {
     tables.remove(tag)
   }
   let data = build_sfnt(tables, max_bytes)

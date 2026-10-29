@@ -16,6 +16,10 @@ Unit test fixtures are constructed within the tests to exercise binary boundarie
 
 `fixtures/metrics/MetricProbe.ttx` is a small synthetic font constructed for this project under the repository's MIT license. Its three glyphs and variation data were not copied from a production font. It checks MVAR line-height, cap-height and underline changes against fontTools; it is not evidence of broad production-font coverage for MVAR.
 
+`fixtures/hints/CVTProbe.ttx` is a repository-authored synthetic font derived from MetricProbe under the same MIT license. Its two-axis control-value variations and nonempty hint programs support cvar differential tests. This is not a production font or a rasterization correctness claim.
+
+`fixtures/instancer/PartialInstancerTest-VF.ttx` is an unmodified upstream fontTools test fixture from commit `21b4060825fdb1259cf205208c49595b7cd670ec`; its full MIT license is adjacent. It contains vertical metrics outside FontPin's current scope and is deliberately tested for rejection, without removing those tables. Exact provenance and SHA-256 are recorded in `fixtures/README.md`.
+
 The command-line file-publication workflow in `src/command/files.mbt` was adapted for binary font output from the author's earlier [MBTRelMask](https://github.com/vivid-oi/MBTRelMask) project, which is Apache-2.0 licensed. That file retains Apache-2.0 licensing; the full license is in `LICENSES/Apache-2.0.txt`. The font algorithms and other new source files use this repository's MIT license.
 
 All generated font outputs remain subject to their source font licenses. FontPin adds no branding, attribution string or watermark to font data; preserving upstream copyright and license records is intentional.
