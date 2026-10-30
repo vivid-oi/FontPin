@@ -1,5 +1,7 @@
 # Font corpus
 
+`layout/ContextProbe.ttx` is a repository-authored MIT derivative of ValueProbe. It adds all ContextPos/ChainContextPos formats, null class rule sets, backtrack/input/lookahead sequences and lookup references to variable positioning.
+
 `layout/AnchorProbe.ttx` is a repository-authored MIT derivative of CaretProbe with cursive and all three mark attachment types, two-axis X/Y VariationIndex adjustments, point anchors and null ligature component anchors.
 
 `layout/ValueProbe.ttx` is a repository-authored MIT derivative of CaretProbe. Its four GPOS lookups exercise SinglePos formats 1/2, PairPos formats 1/2, ExtensionPos, missing base fields, PairSet-relative devices, class zero and mark filtering. The oracle checks four two-axis positions without removing any table.

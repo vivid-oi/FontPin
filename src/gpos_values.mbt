@@ -239,13 +239,14 @@ fn gpos_subtable(
   ctx : LayoutContext,
   kind : Int32,
   pos : Int32,
-  _lookups : Int32,
+  lookups : Int32,
 ) -> LayoutBlock raise FontError {
   match kind {
     1 => gpos_single(ctx, pos)
     2 => gpos_pair(ctx, pos)
     3 => gpos_cursive(ctx, pos)
     4 | 5 | 6 => gpos_marks(ctx, pos, kind)
+    7 | 8 => gpos_context(ctx, pos, kind == 8, lookups)
     _ =>
       raise Unsupported(
         "GPOS lookup type not yet supported: " + kind.to_string(),

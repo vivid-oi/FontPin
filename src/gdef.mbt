@@ -159,8 +159,8 @@ fn instantiate_layout(
   work_limit : Int32,
   max_bytes : Int32,
 ) -> Unit raise FontError {
-  guard tables.get("GDEF") is Some(data) else { return }
-  let version = gdef_version(data)
+  let data = tables.get("GDEF").unwrap_or(b"")
+  let version = if data.is_empty() { 0 } else { gdef_version(data) }
   let store = if version == 3 && read_u32(data, 14) != 0 {
     let offset = read_u32(data, 14)
     if offset < 18 {
@@ -178,8 +178,13 @@ fn instantiate_layout(
     limit: work_limit,
     deltas: Ref(0),
   }
-  let block = freeze_gdef(ctx, version)
-  let gpos = if store is Some(_) && tables.get("GPOS") is Some(positioning) {
+  let block = if data.is_empty() {
+    None
+  } else {
+    Some(freeze_gdef(ctx, version))
+  }
+  let before_gpos = ctx.deltas.val
+  let gpos = if tables.get("GPOS") is Some(positioning) {
     let mark_sets = if version >= 2 && read_u16(data, 12) != 0 {
       read_u16(data, read_u16(data, 12) + 2)
     } else {
@@ -189,10 +194,10 @@ fn instantiate_layout(
   } else {
     None
   }
-  if store is Some(_) {
+  if store is Some(_) && block is Some(block) {
     tables["GDEF"] = serialize_layout(block, ctx, max_bytes)
   }
-  if gpos is Some(output) {
+  if ctx.deltas.val != before_gpos && gpos is Some(output) {
     tables["GPOS"] = output
   }
 }
