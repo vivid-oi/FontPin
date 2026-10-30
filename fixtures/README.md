@@ -1,5 +1,7 @@
 # Font corpus
 
+`layout/FeatureProbe.ttx` is a repository-authored MIT derivative of ContextProbe. GPOS and GSUB use overlapping weight/width range conditions with first-match priority and fallback; the tested weight 650 maps to the exact 0.75 condition boundary through avar.
+
 `layout/ContextProbe.ttx` is a repository-authored MIT derivative of ValueProbe. It adds all ContextPos/ChainContextPos formats, null class rule sets, backtrack/input/lookahead sequences and lookup references to variable positioning.
 
 `layout/AnchorProbe.ttx` is a repository-authored MIT derivative of CaretProbe with cursive and all three mark attachment types, two-axis X/Y VariationIndex adjustments, point anchors and null ligature component anchors.

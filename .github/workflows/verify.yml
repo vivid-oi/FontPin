@@ -71,4 +71,5 @@ jobs:
       - run: moon run checks/layout_oracle.mbtx -- wasm moon python fixtures/layout/ValueProbe.ttx
       - run: moon run checks/layout_oracle.mbtx -- wasm moon python fixtures/layout/AnchorProbe.ttx
       - run: moon run checks/layout_oracle.mbtx -- wasm moon python fixtures/layout/ContextProbe.ttx
+      - run: moon run checks/layout_oracle.mbtx -- wasm moon python fixtures/layout/FeatureProbe.ttx
       - run: moon run checks/layout_oracle.mbtx -- wasm moon python fixtures/robotoslab/RobotoSlab.ttf

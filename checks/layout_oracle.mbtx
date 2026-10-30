@@ -119,11 +119,56 @@ fn compare_xml(actual : XmlNode, expected : XmlNode, glyphs : Array[String], pat
   for i, item in actual.children { compare_xml(item, expected.children[i], glyphs, path + "/" + actual.name) }
 }
 
-fn compare_layout_xml(actual : String, expected : String) -> Unit raise {
+fn lookup_refs(node : XmlNode, refs : Array[Int]) -> Unit raise {
+  if node.name == "LookupListIndex" { refs.push(@string.parse_int(node.attrs["value"])) }
+  for item in node.children { lookup_refs(item, refs) }
+}
+
+fn remap_lookup_refs(node : XmlNode, mapping : Map[Int, Int]) -> Unit raise {
+  if node.name == "LookupListIndex" {
+    let old = @string.parse_int(node.attrs["value"])
+    guard mapping.get(old) is Some(index) else { fail("oracle lookup graph lost a reference") }
+    node.attrs["value"] = index.to_string()
+  }
+  for item in node.children { remap_lookup_refs(item, mapping) }
+}
+
+fn reachable_lookups(root : XmlNode) -> Unit raise {
+  for table in child(root, "ttFont").children {
+    if table.name != "GSUB" && table.name != "GPOS" { continue }
+    let list = child(table, "LookupList")
+    let refs : Array[Int] = []
+    lookup_refs(child(table, "FeatureList"), refs)
+    let seen : Map[Int, Bool] = Map([])
+    let mut cursor = 0
+    while cursor < refs.length() {
+      let index = refs[cursor]
+      cursor += 1
+      if index < 0 || index >= list.children.length() { fail("oracle lookup reference out of range") }
+      if !seen.contains(index) { seen[index] = true; lookup_refs(list.children[index], refs) }
+      if refs.length() > 100000 { fail("oracle lookup graph exceeds work budget") }
+    }
+    let mapping : Map[Int, Int] = Map([])
+    let kept : Array[XmlNode] = []
+    for i, item in list.children {
+      if seen.contains(i) {
+        mapping[i] = kept.length()
+        item.attrs["index"] = kept.length().to_string()
+        kept.push(item)
+      }
+    }
+    list.children.clear()
+    for item in kept { list.children.push(item) }
+    remap_lookup_refs(table, mapping)
+  }
+}
+
+fn compare_layout_xml(actual : String, expected : String, prune : Bool) -> Unit raise {
   let a = parse_xml(actual)
   let e = parse_xml(expected)
   unwrap_extensions(a)
   unwrap_extensions(e)
+  if prune { reachable_lookups(a); reachable_lookups(e) }
   let glyphs = child(child(e, "ttFont"), "GlyphOrder").children.map(item => item.attrs["name"])
   compare_xml(a, e, glyphs, "layout")
 }
@@ -183,7 +228,7 @@ async fn main {
     let text = @fs.read_file(actual_xml[:]).text()
     if text.contains("<VarStore ") || text.contains("<DeltaFormat value=\"32768\"") { fail("static layout retained active variation data") }
     let observed = layout_surface(text)
-    compare_layout_xml(text, @fs.read_file(expected_xml[:]).text())
+    compare_layout_xml(text, @fs.read_file(expected_xml[:]).text(), fixture.has_suffix("FeatureProbe.ttx"))
     if fixture.has_suffix("CaretProbe.ttx") {
       let caret = [150, 200, 275, 300][index]
       if !observed.contains("<Coordinate value=\"" + caret.to_string() + "\"/>") { fail("independent caret coordinate check failed") }

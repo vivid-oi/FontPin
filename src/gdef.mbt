@@ -183,6 +183,16 @@ fn instantiate_layout(
   } else {
     Some(freeze_gdef(ctx, version))
   }
+  for tag in ["GSUB", "GPOS"] {
+    if tables.get(tag) is Some(layout) {
+      let (output, _) = freeze_feature_variations(
+        { ..ctx, data: layout, },
+        coords,
+        max_bytes,
+      )
+      tables[tag] = output
+    }
+  }
   let before_gpos = ctx.deltas.val
   let gpos = if tables.get("GPOS") is Some(positioning) {
     let mark_sets = if version >= 2 && read_u16(data, 12) != 0 {

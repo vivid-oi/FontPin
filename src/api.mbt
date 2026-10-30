@@ -54,9 +54,7 @@ fn preflight(tables : Map[String, Bytes]) -> Unit raise FontError {
       if version != 0x00010000U && version != 0x00010001U {
         raise Unsupported(tag + " version")
       }
-      if version == 0x00010001U && read_u32(data, 10) != 0 {
-        raise Unsupported(tag + " FeatureVariations")
-      }
+      require_range(data, 0, if version == 0x00010001U { 14 } else { 10 })
     }
   }
 }
