@@ -1,5 +1,7 @@
 # Font corpus
 
+`layout/AnchorProbe.ttx` is a repository-authored MIT derivative of CaretProbe with cursive and all three mark attachment types, two-axis X/Y VariationIndex adjustments, point anchors and null ligature component anchors.
+
 `layout/ValueProbe.ttx` is a repository-authored MIT derivative of CaretProbe. Its four GPOS lookups exercise SinglePos formats 1/2, PairPos formats 1/2, ExtensionPos, missing base fields, PairSet-relative devices, class zero and mark filtering. The oracle checks four two-axis positions without removing any table.
 
 `layout/CaretProbe.ttx` is a repository-authored MIT derivative of CVTProbe. Its GDEF includes all three caret formats, attachment points, glyph/mark classification, mark-filtering sets and two-axis variation-store data. Expected varied caret positions are 150, 200, 275 and 300 at the four layout-oracle positions. This is synthetic layout evidence, not a rendered text comparison.
@@ -13,7 +15,7 @@ The two TTF files below are unmodified upstream binaries. Fonts retain their own
 
 Roboto Mono is a real one-axis family with `gvar`, `HVAR`, and `avar`, including simple and composite glyphs. It has no GDEF/GPOS variable positioning. The oracle workflow compares every glyph's decoded points, component transforms and horizontal metrics at several weight coordinates; it does not merely check the output file size.
 
-Roboto Slab is deliberately a rejection fixture: its GDEF variation store and GPOS VariationIndex records require layout instancing, which the first release does not support. The test verifies refusal and absence of a published output. No unsupported table has been stripped to make this fixture pass.
+Roboto Slab is now a positive real-font layout fixture. Its intact GDEF variation store and GPOS class pairs/mark-to-base/mark-to-mark anchors are frozen at weights 100, 400, 650 and 900 and compared with fontTools. No table is stripped to make this fixture pass.
 
 Font binaries and license files were downloaded directly from the linked commits on 2026-10-29. The license-file SHA-256 values are `50ab8dd54680d3473f649c9db86fece88434d097c7834475c1c72d2f8c429215` (Roboto Mono OFL) and `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30` (Roboto Slab Apache license).
 

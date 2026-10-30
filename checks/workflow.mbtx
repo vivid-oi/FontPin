@@ -70,10 +70,9 @@ async fn main {
       fail("invalid axis input was accepted or published output: " + coordinates.join(", "))
     }
   }
-  let unsupported = @shell.Cmd(moon, prefix + ["instance", "fixtures/robotoslab/RobotoSlab.ttf", absent, "wght=650"]).output()
-  if unsupported.exit_code() == 0 || @fs.exists(absent[:]) || !unsupported.stderr().contains("GPOS lookup type not yet supported") {
-    fail("unsupported anchor positioning was accepted or refused without a GPOS diagnostic")
-  }
+  let slab = directory + "/slab.ttf"
+  @shell.Cmd(moon, prefix + ["instance", "fixtures/robotoslab/RobotoSlab.ttf", slab, "wght=650"]).run()
+  @shell.Cmd(moon, prefix + ["inspect", slab]).run()
   let malformed = directory + "/truncated.ttf"
   @fs.write_file(malformed[:], b"\x00\x01\x00\x00")
   let corrupt = @shell.Cmd(moon, prefix + ["instance", malformed, absent, "wght=650"]).output()
@@ -87,5 +86,5 @@ async fn main {
   for name in @fs.readdir(directory[:]) {
     if name.has_suffix(".pending") { fail("failed publication left a temporary file") }
   }
-  println("Font workflow: real conversion, static reload, deterministic bytes, no-clobber, malformed/unsupported input and recovery passed")
+  println("Font workflow: real conversion, static reload, deterministic bytes, no-clobber, malformed input, variable Slab layout and recovery passed")
 }
