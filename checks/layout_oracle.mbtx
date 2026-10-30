@@ -4,15 +4,146 @@ import {
   "moonbitlang/async@0.22.5/shell",
   "moonbitlang/async@0.22.5/fs",
   "moonbitlang/core/env",
+  "moonbitlang/core/string",
 }
 ----
 
+struct XmlNode {
+  name : String
+  attrs : Map[String, String]
+  children : Array[XmlNode]
+}
+
+fn parse_xml(xml : String) -> XmlNode raise {
+  let root : XmlNode = { name: "document", attrs: Map([]), children: [] }
+  let stack = [root]
+  let mut comment = false
+  for part in xml.split("\n") {
+    let raw = part.trim().to_owned()
+    let line = if raw.has_prefix("<!--") { raw } else { raw.split("<!--").to_array()[0].trim().to_owned() }
+    if comment { if line.contains("-->") { comment = false }; continue }
+    if line.has_prefix("<!--") { comment = !line.contains("-->"); continue }
+    if line.is_empty() || line.has_prefix("<?") { continue }
+    if line.has_prefix("</") {
+      if stack.length() <= 1 { fail("unbalanced oracle XML") }
+      ignore(stack.pop())
+      continue
+    }
+    if !line.has_prefix("<") { fail("unsupported text in controlled TTX layout XML") }
+    let mut i = 1
+    while i < line.length() && ![32, 47, 62].contains(line[i].to_int()) { i += 1 }
+    let name = line[1:i].to_owned()
+    let attrs : Map[String, String] = Map([])
+    while i < line.length() {
+      while i < line.length() && line[i].to_int() == 32 { i += 1 }
+      if i >= line.length() || [47, 62].contains(line[i].to_int()) { break }
+      let start = i
+      while i < line.length() && line[i].to_int() != 61 { i += 1 }
+      if i + 1 >= line.length() { fail("invalid oracle XML attribute") }
+      let key = line[start:i].trim().to_owned()
+      i += 1
+      let quote = line[i].to_int()
+      if quote != 34 && quote != 39 { fail("unquoted oracle XML attribute") }
+      i += 1
+      let value_start = i
+      while i < line.length() && line[i].to_int() != quote { i += 1 }
+      if i >= line.length() { fail("unterminated oracle XML attribute") }
+      attrs[key] = line[value_start:i].to_owned()
+      i += 1
+    }
+    if ["SinglePos", "PairPos", "CursivePos", "MarkBasePos", "MarkLigPos", "MarkMarkPos", "ContextPos", "ChainContextPos"].contains(name) { attrs.remove("index") }
+    let node : XmlNode = { name, attrs, children: [] }
+    stack[stack.length() - 1].children.push(node)
+    if !line.has_suffix("/>") { stack.push(node) }
+  }
+  if stack.length() != 1 { fail("unclosed oracle XML element") }
+  root
+}
+
+fn child(node : XmlNode, name : String) -> XmlNode raise {
+  for item in node.children { if item.name == name { return item } }
+  fail("missing oracle XML element " + name)
+}
+
+fn unwrap_extensions(node : XmlNode) -> Unit raise {
+  for item in node.children { unwrap_extensions(item) }
+  if node.name != "Lookup" { return }
+  let wrappers = node.children.filter(item => item.name == "ExtensionPos")
+  if wrappers.is_empty() { return }
+  let kind = child(wrappers[0], "ExtensionLookupType").attrs["value"]
+  child(node, "LookupType").attrs["value"] = kind
+  let items : Array[XmlNode] = []
+  for item in node.children {
+    if item.name == "ExtensionPos" {
+      if child(item, "ExtensionLookupType").attrs["value"] != kind { fail("mixed extension types in oracle XML") }
+      for subtable in item.children { if subtable.name != "ExtensionLookupType" { items.push(subtable) } }
+    } else { items.push(item) }
+  }
+  node.children.clear()
+  for item in items { node.children.push(item) }
+}
+
+fn class_map(node : XmlNode) -> Map[String, Int] raise {
+  let result : Map[String, Int] = Map([])
+  for item in node.children { result[item.attrs["glyph"]] = @string.parse_int(item.attrs["class"]) }
+  result
+}
+
+fn compare_xml(actual : XmlNode, expected : XmlNode, glyphs : Array[String], path : String) -> Unit raise {
+  if actual.name != expected.name || (actual.name != "ttFont" && actual.attrs != expected.attrs) { fail(path + " XML node/attributes differ: " + actual.name + " / " + expected.name) }
+  if actual.name == "PairPos" && actual.attrs.get("Format") == Some("2") {
+    compare_xml(child(actual, "Coverage"), child(expected, "Coverage"), glyphs, path + "/Coverage")
+    for name in ["ValueFormat1", "ValueFormat2"] { compare_xml(child(actual, name), child(expected, name), glyphs, path + "/" + name) }
+    let a1 = class_map(child(actual, "ClassDef1"))
+    let a2 = class_map(child(actual, "ClassDef2"))
+    let e1 = class_map(child(expected, "ClassDef1"))
+    let e2 = class_map(child(expected, "ClassDef2"))
+    let ar = actual.children.filter(item => item.name == "Class1Record")
+    let er = expected.children.filter(item => item.name == "Class1Record")
+    let coverage = child(actual, "Coverage").children
+    if !glyphs.is_empty() && coverage.length() > 2_000_000 / glyphs.length() { fail("oracle class-pair expansion exceeds two million comparisons") }
+    for covered in coverage {
+      let first = covered.attrs["value"]
+      let arow = ar[a1.get(first).unwrap_or(0)].children.filter(item => item.name == "Class2Record")
+      let erow = er[e1.get(first).unwrap_or(0)].children.filter(item => item.name == "Class2Record")
+      for second in glyphs {
+        let av = arow[a2.get(second).unwrap_or(0)]
+        let ev = erow[e2.get(second).unwrap_or(0)]
+        if av.children.length() != ev.children.length() { fail("class-pair value arity differs") }
+        for i, value in av.children { compare_xml(value, ev.children[i], glyphs, path + "/pair:" + first + "," + second) }
+      }
+    }
+    return
+  }
+  if actual.children.length() != expected.children.length() { fail(path + "/" + actual.name + " child count differs") }
+  for i, item in actual.children { compare_xml(item, expected.children[i], glyphs, path + "/" + actual.name) }
+}
+
+fn compare_layout_xml(actual : String, expected : String) -> Unit raise {
+  let a = parse_xml(actual)
+  let e = parse_xml(expected)
+  unwrap_extensions(a)
+  unwrap_extensions(e)
+  let glyphs = child(child(e, "ttFont"), "GlyphOrder").children.map(item => item.attrs["name"])
+  compare_xml(a, e, glyphs, "layout")
+}
+
 fn layout_surface(xml : String) -> Array[String] {
   let lines : Array[String] = []
+  let mut extension_slot = -1
   for part in xml.split("\n") {
     let line = part.trim().to_owned()
     if line.is_empty() || line.has_prefix("<?xml") || line.has_prefix("<ttFont") || line == "</ttFont>" || line.has_prefix("<!--") { continue }
-    lines.push(line)
+    if line == "<LookupType value=\"9\"/>" { extension_slot = lines.length(); lines.push(line); continue }
+    if line.has_prefix("<ExtensionLookupType ") {
+      let parts = line.split("\"").to_array()
+      if extension_slot >= 0 && parts.length() == 3 { lines[extension_slot] = "<LookupType value=\"" + parts[1].to_owned() + "\"/>" }
+      continue
+    }
+    if line.has_prefix("<ExtensionPos ") || line == "</ExtensionPos>" { continue }
+    if ["<SinglePos ", "<PairPos ", "<CursivePos ", "<MarkBasePos ", "<MarkLigPos ", "<MarkMarkPos ", "<ContextPos ", "<ChainContextPos "].any(prefix => line.has_prefix(prefix)) {
+      lines.push(line.split(" ").to_array().filter(part => !part.has_prefix("index=")).map(part => part.to_owned()).join(" "))
+    } else { lines.push(line) }
   }
   lines
 }
@@ -46,18 +177,13 @@ async fn main {
     @shell.Cmd(python, ["-m", "fontTools.varLib.instancer", source] + coordinates + ["--static", "--no-recalc-timestamp", "-o", expected]).run()
     let actual_xml = directory + "/actual-" + index.to_string() + ".ttx"
     let expected_xml = directory + "/expected-" + index.to_string() + ".ttx"
-    let dump = ["-m", "fontTools.ttx", "-q", "-t", "GDEF", "-t", "GPOS", "-t", "GSUB", "-o"]
+    let dump = ["-m", "fontTools.ttx", "-q", "-t", "GlyphOrder", "-t", "GDEF", "-t", "GPOS", "-t", "GSUB", "-o"]
     @shell.Cmd(python, dump + [actual_xml, actual]).run()
     @shell.Cmd(python, dump + [expected_xml, expected]).run()
     let text = @fs.read_file(actual_xml[:]).text()
     if text.contains("<VarStore ") || text.contains("<DeltaFormat value=\"32768\"") { fail("static layout retained active variation data") }
     let observed = layout_surface(text)
-    let reference = layout_surface(@fs.read_file(expected_xml[:]).text())
-    if observed != reference {
-      let length = if observed.length() < reference.length() { observed.length() } else { reference.length() }
-      for i in 0..<length { if observed[i] != reference[i] { fail(fixture + " " + coordinates.join(",") + " layout mismatch: expected " + reference[i] + "; observed " + observed[i]) } }
-      fail("layout XML length differs")
-    }
+    compare_layout_xml(text, @fs.read_file(expected_xml[:]).text())
     if fixture.has_suffix("CaretProbe.ttx") {
       let caret = [150, 200, 275, 300][index]
       if !observed.contains("<Coordinate value=\"" + caret.to_string() + "\"/>") { fail("independent caret coordinate check failed") }

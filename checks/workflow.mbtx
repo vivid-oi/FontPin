@@ -71,8 +71,8 @@ async fn main {
     }
   }
   let unsupported = @shell.Cmd(moon, prefix + ["instance", "fixtures/robotoslab/RobotoSlab.ttf", absent, "wght=650"]).output()
-  if unsupported.exit_code() == 0 || @fs.exists(absent[:]) || !unsupported.stderr().contains("GDEF") {
-    fail("variable positioning was accepted or refused without a GDEF diagnostic")
+  if unsupported.exit_code() == 0 || @fs.exists(absent[:]) || !unsupported.stderr().contains("GPOS lookup type not yet supported") {
+    fail("unsupported anchor positioning was accepted or refused without a GPOS diagnostic")
   }
   let malformed = directory + "/truncated.ttf"
   @fs.write_file(malformed[:], b"\x00\x01\x00\x00")

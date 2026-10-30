@@ -68,3 +68,4 @@ jobs:
       - run: moon run checks/vertical_oracle.mbtx -- wasm moon python fixtures/composites/AttachmentProbe.ttx
       - run: moon run checks/names_oracle.mbtx -- wasm moon python
       - run: moon run checks/layout_oracle.mbtx -- wasm moon python
+      - run: moon run checks/layout_oracle.mbtx -- wasm moon python fixtures/layout/ValueProbe.ttx

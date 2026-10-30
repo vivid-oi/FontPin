@@ -170,11 +170,6 @@ fn instantiate_layout(
   } else {
     None
   }
-  if store is Some(_) && tables.contains("GPOS") {
-    raise Unsupported(
-      "GDEF variation store with GPOS requires positioning instancing",
-    )
-  }
   let ctx : LayoutContext = {
     data,
     glyphs: read_u16(table_required(tables, "maxp"), 4),
@@ -184,7 +179,20 @@ fn instantiate_layout(
     deltas: Ref(0),
   }
   let block = freeze_gdef(ctx, version)
+  let gpos = if store is Some(_) && tables.get("GPOS") is Some(positioning) {
+    let mark_sets = if version >= 2 && read_u16(data, 12) != 0 {
+      read_u16(data, read_u16(data, 12) + 2)
+    } else {
+      0
+    }
+    Some(freeze_gpos({ ..ctx, data: positioning, }, mark_sets, max_bytes))
+  } else {
+    None
+  }
   if store is Some(_) {
     tables["GDEF"] = serialize_layout(block, ctx, max_bytes)
+  }
+  if gpos is Some(output) {
+    tables["GPOS"] = output
   }
 }
