@@ -84,7 +84,7 @@ pub fn Font::instantiate(
     outlines=Some(glyphs),
   )
   let tables = self.tables.copy()
-  instantiate_layout(tables, coords, work_limit, max_bytes)
+  let layout = instantiate_layout(tables, coords, work_limit, max_bytes)
   tables["glyf"] = glyphs.glyf
   tables["loca"] = glyphs.loca
   tables["hmtx"] = hmtx
@@ -161,5 +161,5 @@ pub fn Font::instantiate(
   }
   let data = build_sfnt(tables, max_bytes)
   ignore(parse_sfnt(data, max_bytes))
-  { data, coordinates: actual, glyph_count: glyphs.glyph_count, }
+  { data, coordinates: actual, glyph_count: glyphs.glyph_count, layout, }
 }

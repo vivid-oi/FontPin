@@ -1,0 +1,38 @@
+----
+import {
+  "moonbitlang/async@0.22.5",
+  "moonbitlang/async@0.22.5/fs",
+  "moonbitlang/async@0.22.5/shell",
+  "moonbitlang/core/env",
+}
+----
+
+async fn main {
+  let args = @env.args()
+  let python = if args.length() > 1 { args[1] } else { "python" }
+  let directory = @fs.tmpdir(prefix="fontpin-layout-fixture-")
+  let path = directory + "/FeatureProbe.ttf"
+  defer { @fs.remove(path[:]); @fs.rmdir(directory[:]) }
+  @shell.Cmd(python, ["-m", "fontTools.ttx", "-q", "--no-recalc-timestamp", "-o", path, "fixtures/layout/FeatureProbe.ttx"]).run()
+  let bytes = @fs.read_file(path[:]).binary()
+  let digits = "0123456789abcdef".to_array()
+  let out = StringBuilder()
+  out.write_string("///|\n// MIT fixture compiled from fixtures/layout/FeatureProbe.ttx by fontTools 4.67.0.\n// Regenerate with checks/embed_layout_fixture.mbtx; test-only bytes.\nfn layout_test_font_bytes() -> Bytes {\n")
+  let mut offset = 0
+  while offset < bytes.length() {
+    out.write_string("  b\"")
+    let limit = if offset + 16 > bytes.length() { bytes.length() } else { offset + 16 }
+    for index in offset..<limit {
+      let byte = bytes[index].to_int()
+      out.write_string("\\x")
+      out.write_char(digits[byte >> 4])
+      out.write_char(digits[byte & 15])
+    }
+    out.write_string("\"")
+    if limit < bytes.length() { out.write_string(" +") }
+    out.write_string("\n")
+    offset = limit
+  }
+  out.write_string("}\n")
+  @fs.write_file("src/layout_fixture_test.mbt", out.to_string())
+}

@@ -158,7 +158,8 @@ fn instantiate_layout(
   coords : Array[Double],
   work_limit : Int32,
   max_bytes : Int32,
-) -> Unit raise FontError {
+) -> LayoutAudit raise FontError {
+  let originals = tables.copy()
   let data = tables.get("GDEF").unwrap_or(b"")
   let version = if data.is_empty() { 0 } else { gdef_version(data) }
   let store = if version == 3 && read_u32(data, 14) != 0 {
@@ -177,20 +178,28 @@ fn instantiate_layout(
     work: Ref(0),
     limit: work_limit,
     deltas: Ref(0),
+    lookup_types: [],
   }
   let block = if data.is_empty() {
     None
   } else {
     Some(freeze_gdef(ctx, version))
   }
+  let gdef_indices = ctx.deltas.val
+  let features : Array[(String, Bool, Int32?)] = []
   for tag in ["GSUB", "GPOS"] {
     if tables.get(tag) is Some(layout) {
-      let (output, _) = freeze_feature_variations(
+      let present = read_uint32(layout, 0) == 0x00010001U &&
+        read_u32(layout, 10) != 0
+      let (output, selected) = freeze_feature_variations(
         { ..ctx, data: layout, },
         coords,
         max_bytes,
       )
       tables[tag] = output
+      features.push((tag, present, selected))
+    } else {
+      features.push((tag, false, None))
     }
   }
   let before_gpos = ctx.deltas.val
@@ -209,5 +218,18 @@ fn instantiate_layout(
   }
   if ctx.deltas.val != before_gpos && gpos is Some(output) {
     tables["GPOS"] = output
+  }
+  let rewritten : Array[String] = []
+  for tag in ["GDEF", "GPOS", "GSUB"] {
+    if originals.get(tag) != tables.get(tag) {
+      rewritten.push(tag)
+    }
+  }
+  {
+    gdef_indices,
+    gpos_indices: ctx.deltas.val - before_gpos,
+    lookup_types: ctx.lookup_types,
+    features,
+    rewritten,
   }
 }

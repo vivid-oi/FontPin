@@ -46,6 +46,7 @@ pub fn Font::parse(Bytes, max_bytes? : Int32) -> Self raise FontError
 pub struct Instance {
   // private fields
 }
+pub fn Instance::layout_report(Self) -> Json
 pub fn Instance::report_json(Self) -> Json
 pub fn Instance::to_bytes(Self) -> Bytes
 

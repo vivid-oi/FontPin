@@ -105,10 +105,10 @@ async fn main {
     for name in @fs.readdir(directory[:]) { @fs.remove((directory + "/" + name)[:]) }
     @fs.rmdir(directory[:])
   }
-  let source = "fixtures/robotomono/RobotoMono.ttf"
+  let source = if args.length() > 4 { args[4] } else { "fixtures/robotomono/RobotoMono.ttf" }
   let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
   let mut previous : Map[String, Array[String]]? = None
-  for weight in [100, 400, 650, 700] {
+  for weight in (if source.contains("RobotoSlab") { [100, 400, 650, 900] } else { [100, 400, 650, 700] }) {
     let coordinate = "wght=" + weight.to_string()
     let actual = directory + "/actual-" + weight.to_string() + ".ttf"
     let expected = directory + "/expected-" + weight.to_string() + ".ttf"

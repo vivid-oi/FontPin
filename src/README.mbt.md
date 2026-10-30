@@ -81,3 +81,36 @@ test "a portable asset plan round trips before conversion" {
 Call `font.instantiate_batch(plan)` to get complete `BatchArtifact` values.
 Each artifact has a `filename` and an `instance`; publish the returned list only
 after the call succeeds. Coordinate and preset errors identify the output file.
+
+`instance.layout_report()` returns detached layout evidence; `report_json()`
+also includes it under `layout`. Counts cover VariationIndex references visited
+in the full layout pass, including repeated references and zero deltas. They do
+not describe rendered text. Conditional record indices are zero-based or null.
+
+```mbt check
+///|
+fn artifact_with_layout_audit(
+  source : Bytes,
+  coordinates : Map[String, Double],
+) -> (Bytes, Json) raise @fontpin.FontError {
+  let instance = @fontpin.Font::parse(source).instantiate(coordinates)
+  (instance.to_bytes(), instance.layout_report())
+}
+
+///|
+test "an embedding caller receives static font bytes with versioned layout evidence" {
+  let (bytes, audit) = artifact_with_layout_audit(layout_test_font_bytes(), {
+    "wght": 650.0,
+    "wdth": 87.5,
+  })
+  match @fontpin.inspect_font(bytes) {
+    { "axes": Array(axes), .. } => assert_true(axes.is_empty())
+    _ => fail("output failed static reload")
+  }
+  match audit {
+    { "version": Number(1, ..), "rewritten_tables": Array(tables), .. } =>
+      assert_eq(tables.length(), 3)
+    _ => fail("layout evidence is missing")
+  }
+}
+```

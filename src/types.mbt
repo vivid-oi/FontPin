@@ -27,6 +27,7 @@ pub struct Instance {
   priv data : Bytes
   priv coordinates : Map[String, Double]
   priv glyph_count : Int32
+  priv layout : LayoutAudit
 }
 
 ///|
@@ -45,6 +46,7 @@ pub fn Instance::report_json(self : Instance) -> Json {
     "glyph_count": Json(self.glyph_count),
     "coordinates": Json(self.coordinates),
     "bytes": Json(self.data.length()),
+    "layout": self.layout_report(),
   }
 }
 

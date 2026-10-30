@@ -12,6 +12,7 @@ priv struct LayoutContext {
   work : Ref[Int32]
   limit : Int32
   deltas : Ref[Int32]
+  lookup_types : Array[Int32]
 }
 
 ///|

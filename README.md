@@ -43,6 +43,14 @@ The example creates `regular.ttf`, `semibold.ttf`, `bold.ttf` and `manifest.json
 
 Each output selects exactly one coordinate object or named preset index from the same source font. Unknown fields and duplicate JSON keys are errors. Files use portable ASCII stems and `.ttf`; paths, device names and filenames differing only by ASCII case are refused. Manifests permit 1–16 outputs and are limited to 64 KiB by the CLI. The library's `BatchPlan::parse`, `to_json`, `filenames` and `Font::instantiate_batch` also work without filesystem access.
 
+## Layout-aware asset example
+
+```sh
+moon run --target wasm src/command -- batch fixtures/robotoslab/RobotoSlab.ttf slab-assets examples/layout-assets.json
+```
+
+This creates two static styles from the intact 1,164-glyph Roboto Slab fixture. Each entry in `manifest.json` includes a versioned layout audit: 6 GDEF and 7,863 GPOS VariationIndex references visited, lookup types `[2,4,6,6]`, and rewritten tables `["GDEF","GPOS"]`. Counts include repeated references, zero deltas and NO_VARIATION_INDEX sentinels; they are not numbers of glyphs or distinct store rows. No shaping or rendering certification is implied.
+
 ## Library
 
 Import `"vivid-oi/fontpin" @fontpin` in your `moon.pkg`:
@@ -53,6 +61,7 @@ let axes = font.axes()
 let instance = font.instantiate({ "wght": 650.0 })
 let output_bytes = instance.to_bytes()
 let report = instance.report_json()
+let layout = instance.layout_report()
 ```
 
 `Font::parse` checks the sfnt container and reads axes; `instantiate` checks whether every table can safely participate in conversion. `inspect_font` accepts static and variable TTF files. Errors distinguish `Invalid`, `Unsupported` and `Limit`; `message()` provides an explanation. [Generated API](src/pkg.generated.mbti) lists the complete public surface; the [checked embedding example](src/README.mbt.md) is compiled with the tests.
@@ -94,6 +103,8 @@ moon run checks/gate.mbtx -- js moon
 moon run checks/gate.mbtx -- native moon
 ```
 
-Outline, horizontal/vertical (including VVAR), MVAR global-metric, cvar control-value and multilingual-name instancing are implemented, together with named-style selection and batch asset publication. Roboto Mono supplies real-font outline/HVAR, named-style and batch-workflow evidence. Repository-authored probes supply MVAR/cvar, vertical-metric and language-metadata evidence. The intact upstream fontTools fixture is refused because its MVAR records are not in required tag order. Additional condition formats, partial instancing, CFF2 and subsetting remain future work; no compatibility claim is made for those inputs.
+Version 0.6.0 includes variable GDEF carets, every GPOS lookup type (1–8 plus extensions), axis-range GSUB/GPOS conditional features and detached layout audits. `report_json()` and CLI/batch reports add a `layout` member; existing font bytes and naming policy are unchanged for previously supported inputs.
+
+Outline, horizontal/vertical (including VVAR), MVAR global-metric, cvar control-value and multilingual-name instancing are implemented, together with named-style selection and batch asset publication. Roboto Mono supplies real-font outline/HVAR, named-style and batch-workflow evidence. Roboto Slab supplies intact real-font variable layout plus all-glyph outline/metric evidence at four weights. Repository-authored probes supply MVAR/cvar, vertical-metric and language-metadata evidence. The intact upstream fontTools fixture is refused because its MVAR records are not in required tag order. Additional condition formats, partial instancing, CFF2 and subsetting remain future work; no compatibility claim is made for those inputs.
 
 Font algorithms and new source files are MIT licensed; the adapted file-publication routine retains Apache-2.0. This is a complementary font transformation library, informed by the OpenType specification and checked against fontTools, rather than a port of a renderer or subsetter. See [design and use cases](docs/design.md), [sources and licenses](THIRD_PARTY.md), and [font corpus provenance](fixtures/README.md). Ecosystem uniqueness and performance advantages have not been established.

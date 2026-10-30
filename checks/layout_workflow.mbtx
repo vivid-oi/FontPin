@@ -1,0 +1,53 @@
+----
+import {
+  "moonbitlang/async@0.22.5",
+  "moonbitlang/async@0.22.5/fs",
+  "moonbitlang/async@0.22.5/shell",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+}
+----
+
+async fn main {
+  let args = @env.args()
+  let target = if args.length() > 1 { args[1] } else { "wasm" }
+  let moon = if args.length() > 2 { args[2] } else { "moon" }
+  let directory = @fs.tmpdir(prefix="fontpin-layout-workflow-")
+  let bundle = directory + "/assets"
+  defer {
+    if @fs.exists(bundle[:]) {
+      for name in @fs.readdir(bundle[:]) { @fs.remove((bundle + "/" + name)[:]) }
+      @fs.rmdir(bundle[:])
+    }
+    for name in @fs.readdir(directory[:]) { @fs.remove((directory + "/" + name)[:]) }
+    @fs.rmdir(directory[:])
+  }
+  let source = "fixtures/robotoslab/RobotoSlab.ttf"
+  let original = @fs.read_file(source[:]).binary()
+  let prefix = ["run", "--frozen", "--target", target, "src/command", "--"]
+  let command = @shell.Cmd(moon, prefix + ["batch", source, bundle, "examples/layout-assets.json"]).output()
+  command.check()
+  let report = @json.parse(command.stdout())
+  guard report is { "outputs": Array(outputs), .. } else { fail("missing asset report") }
+  if outputs.length() != 2 { fail("layout bundle does not contain two styles") }
+  let manifest = @json.parse(@fs.read_file((bundle + "/manifest.json")[:]).text())
+  if manifest != report { fail("published layout audit does not match stdout") }
+  for output in outputs {
+    guard output is { "file": String(filename), "font": { "layout": audit, .. }, .. } else { fail("missing per-font layout audit") }
+    match audit {
+      { "version": Number(1, ..), "variation_indices": { "GDEF": Number(6, ..), "GPOS": Number(7863, ..), .. }, "gpos_lookup_types": Array(types), "rewritten_tables": Array(tables), .. } => {
+        if Json::array(types) != [2, 4, 6, 6] || Json::array(tables) != ["GDEF", "GPOS"] { fail("layout audit differs from intact Slab fixture") }
+      }
+      _ => fail("layout audit lost variation evidence")
+    }
+    let path = bundle + "/" + filename
+    let inspection = @shell.Cmd(moon, prefix + ["inspect", path]).output()
+    inspection.check()
+    match @json.parse(inspection.stdout()) {
+      { "axes": Array(axes), "glyph_count": Number(1164, ..), .. } => if !axes.is_empty() { fail("asset still has axes") }
+      _ => fail("layout asset failed static reload")
+    }
+  }
+  if @fs.read_file(source[:]).binary() != original { fail("layout bundle changed source bytes") }
+  println("Layout asset workflow: two intact Slab styles, audited references, published report and static reload passed")
+}

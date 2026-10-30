@@ -239,6 +239,13 @@ fn freeze_gpos(
       }
       pending.push((output + 6 + j * 2, output, real_kind, body))
     }
+    ctx.lookup_types.push(
+      if extension_kind != 0 {
+        extension_kind
+      } else {
+        kind
+      },
+    )
   }
   let bodies : Array[(Int32, LayoutBlock)] = []
   for (field, lookup_start, kind, pos) in pending {

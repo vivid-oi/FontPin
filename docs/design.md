@@ -10,7 +10,7 @@ FontPin takes a variable TrueType font and a complete design position and produc
 
 ## Small public contract
 
-`Font::parse(Bytes)` creates an immutable parsed source; `axes()` returns a detached array. `Font::instantiate(Map[String, Double])` validates and builds a detached result. `Instance::to_bytes()` and `report_json()` expose the artifact and a compact summary. `inspect_font(Bytes)` serves both inputs and outputs. Typed errors make unsupported format features distinguishable from corrupt data and resource limits.
+`Font::parse(Bytes)` creates an immutable parsed source; `axes()` returns a detached array. `Font::instantiate(Map[String, Double])` validates and builds a detached result. `Instance::to_bytes()` and `report_json()` expose the artifact and a compact summary. `layout_report()` returns detached schema-version-1 evidence: GDEF/GPOS reference counts, one resolved lookup type per source GPOS lookup, first matched condition record per table (zero-based or null), and sorted rewritten table tags. An empty ExtensionPos lookup is reported as type 9. A conditional table with no matching record has `present: true, record: null`; an absent conditional table has `present: false, record: null`. `report_json()` includes the same audit under `layout`. `inspect_font(Bytes)` serves both inputs and outputs. Typed errors make unsupported format features distinguishable from corrupt data and resource limits.
 
 `named_instances()` returns detached fvar positions, resolved labels and source-record identities, with the default first. `instantiate_named(index)` selects from that catalog and uses the same conversion/limit contract as explicit coordinates. It does not replace the established coordinate-based output naming policy.
 

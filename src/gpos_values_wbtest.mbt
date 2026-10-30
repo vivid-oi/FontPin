@@ -24,6 +24,7 @@ fn layout_test_context(
     work: Ref(0),
     limit: 10000,
     deltas: Ref(0),
+    lookup_types: [],
   }
 }
 

@@ -112,6 +112,7 @@ test "ordinary Device adjustments are preserved and layout relocation cannot tru
     work: Ref(0),
     limit: 1000,
     deltas: Ref(0),
+    lookup_types: [],
   }
   let block = gdef_caret(ctx, 0)
   assert_eq(serialize_layout(block, ctx, 1000), data)
